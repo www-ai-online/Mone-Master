@@ -1629,7 +1629,47 @@
 
         function downloadChartAsJPG() {
             closeDownloadModal();
-            generateAndExportReport('printable-leave-report', `Leave_Report_${leaveYearMonth}`, 'jpg', ['.action-col']);
+            window.saveToFirebase();
+
+            const originalReport = document.getElementById('printable-leave-report');
+            if (!originalReport) return;
+
+            const clone = originalReport.cloneNode(true);
+            clone.style.position = 'absolute';
+            clone.style.left = '-9999px';
+            clone.style.top = '0';
+            clone.style.width = originalReport.offsetWidth + 'px';
+            document.body.appendChild(clone);
+
+            // Replace input fields with text spans for accurate canvas snapshot
+            clone.querySelectorAll('input[type="text"]').forEach(input => {
+                const val = input.value || '';
+                const span = document.createElement('span');
+                span.className = "text-[10px] font-bold text-black";
+                span.innerText = val;
+                input.parentNode.replaceChild(span, input);
+            });
+
+            // Hide action columns in cloned node
+            clone.querySelectorAll('.action-col').forEach(el => el.classList.add('hidden'));
+
+            html2canvas(clone, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false }).then(canvas => {
+                document.body.removeChild(clone);
+
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+                let link = document.createElement('a');
+                link.download = `Leave_Report_${leaveYearMonth}.jpg`;
+                link.href = dataUrl;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                document.getElementById('preview-generated-img').src = dataUrl;
+                document.getElementById('image-preview-modal').classList.remove('hidden');
+            }).catch(err => {
+                if(clone.parentNode) document.body.removeChild(clone);
+                alert('නිවාඩු වාර්තාව ඩවුන්ලෝඩ් කිරීමේදී දෝෂයක් ඇති විය.');
+            });
         }
 
         function downloadLeavePDF() {
