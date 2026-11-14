@@ -1363,6 +1363,11 @@
         }
 
         function saveParadeReportData() {
+            // Sync all input values to DOM attribute so html2canvas captures them reliably
+            document.querySelectorAll('.parade-input').forEach(input => {
+                input.setAttribute('value', input.value);
+            });
+
             window.saveToFirebase();
             
             const reportElement = document.getElementById('printable-parade-report');
@@ -1472,8 +1477,9 @@
                     r += `<td class="p-0.5 border border-black ${cellBg}">
                         <input type="text" inputmode="numeric" value="${val}" 
                         data-row="${idx}" data-col="${d}"
+                        oninput="this.setAttribute('value', this.value);"
                         onfocus="if(this.value==='-')this.value='';" 
-                        onblur="if(this.value==='')this.value='-'; updateParadeCell('${ds}', ${idx}, this.value);"
+                        onblur="if(this.value==='')this.value='-'; this.setAttribute('value', this.value); updateParadeCell('${ds}', ${idx}, this.value);"
                         onkeydown="handleParadeKeyDown(event, ${idx}, ${d})"
                         class="parade-input w-full text-center bg-transparent border-0 text-[10px] py-1 font-bold">
                     </td>`;
