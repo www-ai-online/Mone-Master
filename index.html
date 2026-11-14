@@ -207,7 +207,12 @@
                 </button>
                 <div class="flex items-center space-x-2 flex-wrap gap-1">
                     <span id="current-parade-section-title" class="text-xs font-bold text-gray-700"></span>
-                    <button onclick="saveParadeReportData()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm">Save & Preview</button>
+                    <button onclick="downloadParadeReportImage()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-bold shadow-sm flex items-center space-x-1">
+                        <i class="fa-solid fa-download"></i><span>Save & Download JPG</span>
+                    </button>
+                    <button onclick="shareParadeReportImage()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs font-bold shadow-sm flex items-center space-x-1">
+                        <i class="fa-solid fa-share-nodes"></i><span>WhatsApp / Share</span>
+                    </button>
                     <button type="button" onclick="openAddExtraItemModal()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-lg text-xs font-bold">
                         <i class="fa-solid fa-plus text-[10px]"></i> විස්තරයක් එකතු කරන්න
                     </button>
@@ -233,24 +238,6 @@
                                 <tbody id="parade-table-body" class="divide-y divide-black text-[10px] text-center"></tbody>
                             </table>
                         </div>
-                    </div>
-                </div>
-
-                <!-- Parade Report Preview & Share Section -->
-                <div id="parade-preview-section" class="hidden bg-gray-50 border border-indigo-200 rounded-xl p-4 space-y-3 shadow-inner no-print">
-                    <div class="flex justify-between items-center border-b pb-2">
-                        <h3 class="text-xs font-bold text-indigo-900">වාර්තා පෙරදසුන (Preview & Share)</h3>
-                        <div class="flex items-center space-x-2">
-                            <button onclick="downloadParadeReportImage()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 shadow">
-                                <i class="fa-solid fa-download"></i><span>Download JPG</span>
-                            </button>
-                            <button onclick="shareParadeReportImage()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 shadow">
-                                <i class="fa-solid fa-share-nodes"></i><span>WhatsApp / Share</span>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="border rounded-lg bg-white p-2 overflow-auto max-h-[400px] flex justify-center">
-                        <img id="parade-preview-img" src="" alt="Parade Preview" class="max-w-full h-auto border shadow-sm" />
                     </div>
                 </div>
             </div>
@@ -1354,7 +1341,6 @@
             if (!clean) delete monthData.data[day][itemIndex];
             else monthData.data[day][itemIndex] = clean;
             
-            // Sync input value attribute immediately when typing
             const activeInput = document.querySelector(`.parade-input[data-row="${itemIndex}"][data-col="${parseInt(day, 10)}"]`);
             if (activeInput) {
                 activeInput.setAttribute('value', clean);
@@ -1374,70 +1360,62 @@
             }
         }
 
-        function saveParadeReportData() {
+        function downloadParadeReportImage() {
             // CRITICAL: Sync ALL input values to their DOM value attributes so html2canvas captures typed/edited data accurately
             document.querySelectorAll('.parade-input').forEach(input => {
                 input.setAttribute('value', input.value);
             });
 
             window.saveToFirebase();
-            
-            const reportElement = document.getElementById('printable-parade-report');
-            if (!reportElement) return;
-
-            // Hide Action column during preview generation
-            const actionCols = reportElement.querySelectorAll('.parade-action-col');
-            actionCols.forEach(el => el.classList.add('hidden'));
-
-            html2canvas(reportElement, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false }).then(canvas => {
-                actionCols.forEach(el => el.classList.remove('hidden'));
-
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
-                document.getElementById('parade-preview-img').src = dataUrl;
-                document.getElementById('parade-preview-section').classList.remove('hidden');
-                document.getElementById('parade-preview-section').scrollIntoView({ behavior: 'smooth' });
-                alert('දෛනික පෙළපාලි වාර්තාව සාර්ථකව Save කර පෙරදසුන (Preview) සකස් කරන ලදී!');
-            }).catch(err => {
-                actionCols.forEach(el => el.classList.remove('hidden'));
-                alert('පෙරදසුන සකස් කිරීමේදී දෝෂයක් ඇති විය.');
-            });
-        }
-
-        function downloadParadeReportImage() {
-            const imgEl = document.getElementById('parade-preview-img');
-            if (!imgEl || !imgEl.src) return;
-            let link = document.createElement('a');
-            link.download = `Parade_Report_${currentYearMonth}.jpg`;
-            link.href = imgEl.src;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            generateAndExportReport('printable-parade-report', `Parade_Report_${currentYearMonth}`, 'jpg', ['.parade-action-col', '.no-print']);
         }
 
         async function shareParadeReportImage() {
-            const imgEl = document.getElementById('parade-preview-img');
+            document.querySelectorAll('.parade-input').forEach(input => {
+                input.setAttribute('value', input.value);
+            });
+
+            window.saveToFirebase();
+
+            const reportElement = document.getElementById('printable-parade-report');
             const titleText = document.getElementById('parade-main-title').innerText || `දෛනික පෙළපාලි වාර්තාව`;
-            if (!imgEl || !imgEl.src) return;
+            if (!reportElement) return;
 
-            try {
-                const res = await fetch(imgEl.src);
-                const blob = await res.blob();
-                const file = new File([blob], `Parade_Report_${currentYearMonth}.jpg`, { type: 'image/jpeg' });
+            const actionCols = reportElement.querySelectorAll('.parade-action-col');
+            actionCols.forEach(el => el.classList.add('hidden'));
 
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    await navigator.share({
-                        files: [file],
-                        title: titleText,
-                        text: titleText
-                    });
-                } else {
-                    downloadParadeReportImage();
-                    alert('පින්තූරය Download විය. ඔබට එය WhatsApp වෙත Share කළ හැක.');
+            html2canvas(reportElement, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false }).then(async canvas => {
+                actionCols.forEach(el => el.classList.remove('hidden'));
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+
+                try {
+                    const res = await fetch(dataUrl);
+                    const blob = await res.blob();
+                    const file = new File([blob], `Parade_Report_${currentYearMonth}.jpg`, { type: 'image/jpeg' });
+
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                            files: [file],
+                            title: titleText,
+                            text: titleText
+                        });
+                    } else {
+                        let link = document.createElement('a');
+                        link.download = `Parade_Report_${currentYearMonth}.jpg`;
+                        link.href = dataUrl;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        alert('පින්තූරය Download විය. ඔබට එය WhatsApp වෙත Share කළ හැක.');
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert('Share කිරීමේදී දෝෂයක් ඇති විය.');
                 }
-            } catch (err) {
-                console.error(err);
-                alert('Share කිරීමේදී දෝෂයක් ඇති විය.');
-            }
+            }).catch(err => {
+                actionCols.forEach(el => el.classList.remove('hidden'));
+                alert('පින්තූරය සකස් කිරීමේදී දෝෂයක් ඇති විය.');
+            });
         }
 
         function renderParadeTable() {
