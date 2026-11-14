@@ -240,9 +240,14 @@
                 <div id="parade-preview-section" class="hidden bg-gray-50 border border-indigo-200 rounded-xl p-4 space-y-3 shadow-inner no-print">
                     <div class="flex justify-between items-center border-b pb-2">
                         <h3 class="text-xs font-bold text-indigo-900">වාර්තා පෙරදසුන (Preview & Share)</h3>
-                        <button onclick="shareParadeReportImage()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 shadow">
-                            <i class="fa-solid fa-share-nodes"></i><span>WhatsApp / Share කරගන්න</span>
-                        </button>
+                        <div class="flex items-center space-x-2">
+                            <button onclick="downloadParadeReportImage()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 shadow">
+                                <i class="fa-solid fa-download"></i><span>Download JPG</span>
+                            </button>
+                            <button onclick="shareParadeReportImage()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 shadow">
+                                <i class="fa-solid fa-share-nodes"></i><span>WhatsApp / Share</span>
+                            </button>
+                        </div>
                     </div>
                     <div class="border rounded-lg bg-white p-2 overflow-auto max-h-[400px] flex justify-center">
                         <img id="parade-preview-img" src="" alt="Parade Preview" class="max-w-full h-auto border shadow-sm" />
@@ -1373,15 +1378,33 @@
             const reportElement = document.getElementById('printable-parade-report');
             if (!reportElement) return;
 
+            // Hide Action column during preview generation
+            const actionCols = reportElement.querySelectorAll('.parade-action-col');
+            actionCols.forEach(el => el.classList.add('hidden'));
+
             html2canvas(reportElement, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false }).then(canvas => {
+                actionCols.forEach(el => el.classList.remove('hidden'));
+
                 const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
                 document.getElementById('parade-preview-img').src = dataUrl;
                 document.getElementById('parade-preview-section').classList.remove('hidden');
                 document.getElementById('parade-preview-section').scrollIntoView({ behavior: 'smooth' });
                 alert('දෛනික පෙළපාලි වාර්තාව සාර්ථකව Save කර පෙරදසුන (Preview) පහතින් සකස් කරන ලදී!');
             }).catch(err => {
+                actionCols.forEach(el => el.classList.remove('hidden'));
                 alert('පෙරදසුන සකස් කිරීමේදී දෝෂයක් ඇති විය.');
             });
+        }
+
+        function downloadParadeReportImage() {
+            const imgEl = document.getElementById('parade-preview-img');
+            if (!imgEl || !imgEl.src) return;
+            let link = document.createElement('a');
+            link.download = `Parade_Report_${currentYearMonth}.jpg`;
+            link.href = imgEl.src;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         async function shareParadeReportImage() {
@@ -1401,10 +1424,7 @@
                         text: titleText
                     });
                 } else {
-                    let link = document.createElement('a');
-                    link.download = `Parade_Report_${currentYearMonth}.jpg`;
-                    link.href = imgEl.src;
-                    link.click();
+                    downloadParadeReportImage();
                     alert('පින්තූරය Download විය. ඔබට එය WhatsApp වෙත Share කළ හැක.');
                 }
             } catch (err) {
@@ -1441,7 +1461,7 @@
 
             let h = `<th class="p-1.5 border border-black font-bold w-9">අ/අ</th>
                      <th class="p-1.5 border border-black font-bold min-w-[210px]">විස්තරය</th>
-                     <th class="no-print p-1.5 border border-black font-bold w-20">Action</th>`;
+                     <th class="parade-action-col p-1.5 border border-black font-bold w-20">Action</th>`;
             
             let dayColors = {};
             for (let d = 1; d <= daysCount; d++) {
@@ -1458,7 +1478,7 @@
                 let r = `<tr class="border-b border-black text-black align-middle">
                     <td class="p-1.5 border border-black font-bold">${seq}</td>
                     <td class="p-1.5 border border-black text-left px-2 font-bold">${itemText}</td>
-                    <td class="no-print p-1 border border-black">
+                    <td class="parade-action-col p-1 border border-black">
                         <div class="flex items-center justify-center space-x-1">
                             <button onclick="openAddExtraItemModal(${idx})" class="text-indigo-600 hover:text-indigo-800 text-xs px-1" title="වෙනස් කරන්න"><i class="fa-solid fa-pen"></i></button>
                             <button onclick="deleteParadeItem(${idx})" class="text-red-500 hover:text-red-700 text-xs px-1" title="මකන්න"><i class="fa-solid fa-trash"></i></button>
@@ -1491,7 +1511,7 @@
             let sigRow = `<tr class="border-b border-black text-black align-middle bg-gray-50/40">
                 <td class="p-1.5 border border-black font-bold">${sigSeq}</td>
                 <td class="p-1.5 border border-black text-left px-2 font-bold">අංශභාර ජ්‍යෙකොනොනි අත්සන</td>
-                <td class="no-print p-1 border border-black text-center text-[9px] text-gray-500 font-semibold">කොටුව ඔබන්න</td>`;
+                <td class="parade-action-col p-1 border border-black text-center text-[9px] text-gray-500 font-semibold">කොටුව ඔබන්න</td>`;
 
             for (let d = 1; d <= daysCount; d++) {
                 let ds = String(d).padStart(2, '0');
@@ -1499,7 +1519,7 @@
                 let sigObj = sigs[ds];
                 
                 let cellContent = `<div class="h-10 w-full flex flex-col items-center justify-center cursor-pointer hover:bg-indigo-50/50 transition" title="කෙටි අත්සන යෙදීමට ස්පර්ශ කරන්න">
-                    <span class="text-[8px] text-gray-300 no-print">+</span>
+                    <span class="text-[8px] text-gray-300 parade-action-col">+</span>
                 </div>`;
 
                 if (sigObj && sigObj.img) {
