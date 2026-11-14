@@ -1353,6 +1353,13 @@
             const clean = val.trim();
             if (!clean) delete monthData.data[day][itemIndex];
             else monthData.data[day][itemIndex] = clean;
+            
+            // Sync input value attribute immediately when typing
+            const activeInput = document.querySelector(`.parade-input[data-row="${itemIndex}"][data-col="${parseInt(day, 10)}"]`);
+            if (activeInput) {
+                activeInput.setAttribute('value', clean);
+            }
+
             window.saveToFirebase();
         }
 
@@ -1368,7 +1375,7 @@
         }
 
         function saveParadeReportData() {
-            // Sync all input values to DOM attribute so html2canvas captures them reliably
+            // CRITICAL: Sync ALL input values to their DOM value attributes so html2canvas captures typed/edited data accurately
             document.querySelectorAll('.parade-input').forEach(input => {
                 input.setAttribute('value', input.value);
             });
@@ -1389,7 +1396,7 @@
                 document.getElementById('parade-preview-img').src = dataUrl;
                 document.getElementById('parade-preview-section').classList.remove('hidden');
                 document.getElementById('parade-preview-section').scrollIntoView({ behavior: 'smooth' });
-                alert('දෛනික පෙළපාලි වාර්තාව සාර්ථකව Save කර පෙරදසුන (Preview) පහතින් සකස් කරන ලදී!');
+                alert('දෛනික පෙළපාලි වාර්තාව සාර්ථකව Save කර පෙරදසුන (Preview) සකස් කරන ලදී!');
             }).catch(err => {
                 actionCols.forEach(el => el.classList.remove('hidden'));
                 alert('පෙරදසුන සකස් කිරීමේදී දෝෂයක් ඇති විය.');
@@ -1497,7 +1504,7 @@
                     r += `<td class="p-0.5 border border-black ${cellBg}">
                         <input type="text" inputmode="numeric" value="${val}" 
                         data-row="${idx}" data-col="${d}"
-                        oninput="this.setAttribute('value', this.value);"
+                        oninput="this.setAttribute('value', this.value); updateParadeCell('${ds}', ${idx}, this.value);"
                         onfocus="if(this.value==='-')this.value='';" 
                         onblur="if(this.value==='')this.value='-'; this.setAttribute('value', this.value); updateParadeCell('${ds}', ${idx}, this.value);"
                         onkeydown="handleParadeKeyDown(event, ${idx}, ${d})"
