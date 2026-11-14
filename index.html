@@ -4,7 +4,7 @@ function generateAndExportReport(elementId, fileName, type, hideSelectors = ['.n
 
     updateSignTitleDisplay();
 
-    // 1. Temporarily replace inputs and selects with text spans so html2canvas can capture them
+    // Temporarily replace inputs and selects with text spans so html2canvas can capture them
     const replacedElements = [];
     reportElement.querySelectorAll('input, select').forEach(el => {
         const span = document.createElement('span');
