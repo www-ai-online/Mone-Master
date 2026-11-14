@@ -17,7 +17,6 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // Your Firebase Configuration (Updated with your credentials)
         const firebaseConfig = {
           apiKey: "AIzaSyB1nSXyDff2uXHxcSY4Uxr0xP9jPZXDKiM",
           authDomain: "section-fb572.firebaseapp.com",
@@ -31,12 +30,10 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // Make firebase tools globally available
         window.db = db;
         window.docRef = doc(db, "appData", "mainStore");
 
         function initializeAppStore() {
-            // Real-time listener using Firestore onSnapshot (Live Updates)
             onSnapshot(window.docRef, (docSnap) => {
                 if (docSnap.exists()) {
                     const data = docSnap.data();
@@ -46,12 +43,10 @@
                     window.leaveRecords = data.leaveRecords || {};
                     window.vehicleSignatures = data.vehicleSignatures || {};
                     
-                    // Trigger UI re-render based on current view
                     if (typeof window.refreshCurrentView === 'function') {
                         window.refreshCurrentView();
                     }
                 } else {
-                    // Initialize empty state in Firestore if document doesn't exist
                     saveToFirebase();
                 }
             }, (error) => {
@@ -75,7 +70,6 @@
             }
         };
 
-        // Start initialization once loaded
         window.addEventListener('DOMContentLoaded', () => {
             initializeAppStore();
         });
@@ -213,8 +207,7 @@
                 </button>
                 <div class="flex items-center space-x-2 flex-wrap gap-1">
                     <span id="current-parade-section-title" class="text-xs font-bold text-gray-700"></span>
-                    <button onclick="saveParadeReportData()" class="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm">Save</button>
-                    <button onclick="downloadElementAsPDF('printable-parade-report', 'Parade_Report_' + currentYearMonth)" class="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm">PDF / Print</button>
+                    <button onclick="saveParadeReportData()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm">Save & Preview</button>
                     <button type="button" onclick="openAddExtraItemModal()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-lg text-xs font-bold">
                         <i class="fa-solid fa-plus text-[10px]"></i> විස්තරයක් එකතු කරන්න
                     </button>
@@ -240,6 +233,19 @@
                                 <tbody id="parade-table-body" class="divide-y divide-black text-[10px] text-center"></tbody>
                             </table>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Parade Report Preview & Share Section -->
+                <div id="parade-preview-section" class="hidden bg-gray-50 border border-indigo-200 rounded-xl p-4 space-y-3 shadow-inner no-print">
+                    <div class="flex justify-between items-center border-b pb-2">
+                        <h3 class="text-xs font-bold text-indigo-900">වාර්තා පෙරදසුන (Preview & Share)</h3>
+                        <button onclick="shareParadeReportImage()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 shadow">
+                            <i class="fa-solid fa-share-nodes"></i><span>WhatsApp / Share කරගන්න</span>
+                        </button>
+                    </div>
+                    <div class="border rounded-lg bg-white p-2 overflow-auto max-h-[400px] flex justify-center">
+                        <img id="parade-preview-img" src="" alt="Parade Preview" class="max-w-full h-auto border shadow-sm" />
                     </div>
                 </div>
             </div>
@@ -1276,10 +1282,6 @@
             generateAndExportReport('printable-report', `Vehicle_Report_${currentDate}`, type, ['.no-print']);
         }
 
-        function downloadElementAsPDF(elementId, fileName) {
-            generateAndExportReport(elementId, fileName, 'pdf', ['.no-print']);
-        }
-
         function renderVehicleTable() {
             const tbody = document.getElementById('vehicle-table-body');
             if (!tbody || !activeSectionId) return;
@@ -1349,9 +1351,60 @@
             window.saveToFirebase();
         }
 
+        function handleParadeKeyDown(event, rIdx, cIdx) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                const nextRowInput = document.querySelector(`.parade-input[data-row="${rIdx + 1}"][data-col="${cIdx}"]`);
+                if (nextRowInput) {
+                    nextRowInput.focus();
+                    nextRowInput.select();
+                }
+            }
+        }
+
         function saveParadeReportData() {
             window.saveToFirebase();
-            alert('දෛනික පෙළපාලි වාර්තාව සාර්ථකව Save කර ඇත!');
+            
+            const reportElement = document.getElementById('printable-parade-report');
+            if (!reportElement) return;
+
+            html2canvas(reportElement, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false }).then(canvas => {
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+                document.getElementById('parade-preview-img').src = dataUrl;
+                document.getElementById('parade-preview-section').classList.remove('hidden');
+                document.getElementById('parade-preview-section').scrollIntoView({ behavior: 'smooth' });
+                alert('දෛනික පෙළපාලි වාර්තාව සාර්ථකව Save කර පෙරදසුන (Preview) පහතින් සකස් කරන ලදී!');
+            }).catch(err => {
+                alert('පෙරදසුන සකස් කිරීමේදී දෝෂයක් ඇති විය.');
+            });
+        }
+
+        async function shareParadeReportImage() {
+            const imgEl = document.getElementById('parade-preview-img');
+            if (!imgEl || !imgEl.src) return;
+
+            try {
+                const res = await fetch(imgEl.src);
+                const blob = await res.blob();
+                const file = new File([blob], `Parade_Report_${currentYearMonth}.jpg`, { type: 'image/jpeg' });
+
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: 'දෛනික පෙළපාලි වාර්තාව',
+                        text: `${currentYearMonth} මාසයේ දෛනික පෙළපාලි වාර්තාව.`
+                    });
+                } else {
+                    let link = document.createElement('a');
+                    link.download = `Parade_Report_${currentYearMonth}.jpg`;
+                    link.href = imgEl.src;
+                    link.click();
+                    alert('පින්තූරය Download විය. ඔබට එය WhatsApp වෙත Share කළ හැක.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Share කිරීමේදී දෝෂයක් ඇති විය.');
+            }
         }
 
         function renderParadeTable() {
@@ -1368,6 +1421,14 @@
 
             const [y, m] = currentYearMonth.split('-');
             const daysCount = getDaysInMonth(parseInt(y), parseInt(m));
+            
+            const todayObj = new Date();
+            const todayYearStr = todayObj.getFullYear();
+            const todayMonthStr = String(todayObj.getMonth() + 1).padStart(2, '0');
+            const todayDayStr = String(todayObj.getDate()).padStart(2, '0');
+            const isCurrentMonth = (parseInt(y) === todayYearStr && parseInt(m) === parseInt(todayMonthStr));
+            const currentDayNum = isCurrentMonth ? parseInt(todayDayStr, 10) : (parseInt(y) < todayYearStr || (parseInt(y) === todayYearStr && parseInt(m) < parseInt(todayMonthStr)) ? daysCount : 0);
+
             const secObj = window.sections.find(s => s.id === activeSectionId);
             const secName = secObj ? secObj.name : 'ඉංජිසේමු විනයාරක්ෂක අංශය';
             titleEl.innerText = `${secName} ${y} ${sinhalaMonths[m] || m} මස දෛනික පෙළපාලි විස්තරය`;
@@ -1401,9 +1462,19 @@
                 for (let d = 1; d <= daysCount; d++) {
                     let ds = String(d).padStart(2, '0');
                     let cellBg = dayColors[ds];
-                    let val = data[ds]?.[idx] || '';
+                    let val = data[ds]?.[idx] !== undefined ? data[ds][idx] : '';
+                    
+                    if (val === '' && d <= currentDayNum) {
+                        val = '-';
+                    }
+
                     r += `<td class="p-0.5 border border-black ${cellBg}">
-                        <input type="text" value="${val}" onchange="updateParadeCell('${ds}', ${idx}, this.value)" class="w-full text-center bg-transparent border-0 text-[10px] py-1 font-bold">
+                        <input type="text" inputmode="numeric" value="${val}" 
+                        data-row="${idx}" data-col="${d}"
+                        onfocus="if(this.value==='-')this.value='';" 
+                        onblur="if(this.value==='')this.value='-'; updateParadeCell('${ds}', ${idx}, this.value);"
+                        onkeydown="handleParadeKeyDown(event, ${idx}, ${d})"
+                        class="parade-input w-full text-center bg-transparent border-0 text-[10px] py-1 font-bold">
                     </td>`;
                 }
                 rows += r + '</tr>';
