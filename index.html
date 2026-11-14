@@ -1341,11 +1341,6 @@
             if (!clean) delete monthData.data[day][itemIndex];
             else monthData.data[day][itemIndex] = clean;
             
-            const activeInput = document.querySelector(`.parade-input[data-row="${itemIndex}"][data-col="${parseInt(day, 10)}"]`);
-            if (activeInput) {
-                activeInput.setAttribute('value', clean);
-            }
-
             window.saveToFirebase();
         }
 
@@ -1361,31 +1356,70 @@
         }
 
         function downloadParadeReportImage() {
-            // CRITICAL: Sync ALL input values to their DOM value attributes so html2canvas captures typed/edited data accurately
-            document.querySelectorAll('.parade-input').forEach(input => {
-                input.setAttribute('value', input.value);
+            window.saveToFirebase();
+            
+            const originalReport = document.getElementById('printable-parade-report');
+            if (!originalReport) return;
+
+            const clone = originalReport.cloneNode(true);
+            clone.style.position = 'absolute';
+            clone.style.left = '-9999px';
+            clone.style.top = '0';
+            clone.style.width = originalReport.offsetWidth + 'px';
+            document.body.appendChild(clone);
+
+            clone.querySelectorAll('.parade-input').forEach(input => {
+                const val = input.value || '';
+                const span = document.createElement('span');
+                span.className = "text-[10px] font-bold text-black";
+                span.innerText = val;
+                input.parentNode.replaceChild(span, input);
             });
 
-            window.saveToFirebase();
-            generateAndExportReport('printable-parade-report', `Parade_Report_${currentYearMonth}`, 'jpg', ['.parade-action-col', '.no-print']);
+            clone.querySelectorAll('.parade-action-col').forEach(el => el.classList.add('hidden'));
+
+            html2canvas(clone, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false }).then(canvas => {
+                document.body.removeChild(clone);
+
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+                let link = document.createElement('a');
+                link.download = `Parade_Report_${currentYearMonth}.jpg`;
+                link.href = dataUrl;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }).catch(err => {
+                if(clone.parentNode) document.body.removeChild(clone);
+                alert('වාර්තාව ඩවුන්ලෝඩ් කිරීමේදී දෝෂයක් ඇති විය.');
+            });
         }
 
         async function shareParadeReportImage() {
-            document.querySelectorAll('.parade-input').forEach(input => {
-                input.setAttribute('value', input.value);
-            });
-
             window.saveToFirebase();
 
-            const reportElement = document.getElementById('printable-parade-report');
+            const originalReport = document.getElementById('printable-parade-report');
             const titleText = document.getElementById('parade-main-title').innerText || `දෛනික පෙළපාලි වාර්තාව`;
-            if (!reportElement) return;
+            if (!originalReport) return;
 
-            const actionCols = reportElement.querySelectorAll('.parade-action-col');
-            actionCols.forEach(el => el.classList.add('hidden'));
+            const clone = originalReport.cloneNode(true);
+            clone.style.position = 'absolute';
+            clone.style.left = '-9999px';
+            clone.style.top = '0';
+            clone.style.width = originalReport.offsetWidth + 'px';
+            document.body.appendChild(clone);
 
-            html2canvas(reportElement, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false }).then(async canvas => {
-                actionCols.forEach(el => el.classList.remove('hidden'));
+            clone.querySelectorAll('.parade-input').forEach(input => {
+                const val = input.value || '';
+                const span = document.createElement('span');
+                span.className = "text-[10px] font-bold text-black";
+                span.innerText = val;
+                input.parentNode.replaceChild(span, input);
+            });
+
+            clone.querySelectorAll('.parade-action-col').forEach(el => el.classList.add('hidden'));
+
+            html2canvas(clone, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false }).then(async canvas => {
+                document.body.removeChild(clone);
                 const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
 
                 try {
@@ -1413,7 +1447,7 @@
                     alert('Share කිරීමේදී දෝෂයක් ඇති විය.');
                 }
             }).catch(err => {
-                actionCols.forEach(el => el.classList.remove('hidden'));
+                if(clone.parentNode) document.body.removeChild(clone);
                 alert('පින්තූරය සකස් කිරීමේදී දෝෂයක් ඇති විය.');
             });
         }
@@ -1482,9 +1516,9 @@
                     r += `<td class="p-0.5 border border-black ${cellBg}">
                         <input type="text" inputmode="numeric" value="${val}" 
                         data-row="${idx}" data-col="${d}"
-                        oninput="this.setAttribute('value', this.value); updateParadeCell('${ds}', ${idx}, this.value);"
+                        oninput="updateParadeCell('${ds}', ${idx}, this.value);"
                         onfocus="if(this.value==='-')this.value='';" 
-                        onblur="if(this.value==='')this.value='-'; this.setAttribute('value', this.value); updateParadeCell('${ds}', ${idx}, this.value);"
+                        onblur="if(this.value==='')this.value='-'; updateParadeCell('${ds}', ${idx}, this.value);"
                         onkeydown="handleParadeKeyDown(event, ${idx}, ${d})"
                         class="parade-input w-full text-center bg-transparent border-0 text-[10px] py-1 font-bold">
                     </td>`;
