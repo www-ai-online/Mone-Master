@@ -1,0 +1,1599 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Letter & Data Management App</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- html2canvas & jsPDF for Reliable JPG & PDF Download -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <!-- Firebase SDKs (Modular v10 CDN) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // Your Firebase Configuration (Updated with your credentials)
+        const firebaseConfig = {
+          apiKey: "AIzaSyB1nSXyDff2uXHxcSY4Uxr0xP9jPZXDKiM",
+          authDomain: "section-fb572.firebaseapp.com",
+          projectId: "section-fb572",
+          storageBucket: "section-fb572.firebasestorage.app",
+          messagingSenderId: "846325687512",
+          appId: "1:846325687512:web:5553cebeb3b275aa3b23ad",
+          measurementId: "G-X6FYSB7L6C"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Make firebase tools globally available
+        window.db = db;
+        window.docRef = doc(db, "appData", "mainStore");
+
+        function initializeAppStore() {
+            // Real-time listener using Firestore onSnapshot (Live Updates)
+            onSnapshot(window.docRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    window.sections = data.sections || [];
+                    window.vehicleRecords = data.vehicleRecords || {};
+                    window.paradeRecords = data.paradeRecords || {};
+                    window.leaveRecords = data.leaveRecords || {};
+                    window.vehicleSignatures = data.vehicleSignatures || {};
+                    
+                    // Trigger UI re-render based on current view
+                    if (typeof window.refreshCurrentView === 'function') {
+                        window.refreshCurrentView();
+                    }
+                } else {
+                    // Initialize empty state in Firestore if document doesn't exist
+                    saveToFirebase();
+                }
+            }, (error) => {
+                console.error("Firestore sync error: ", error);
+            });
+        }
+
+        window.saveToFirebase = async function() {
+            try {
+                await setDoc(window.docRef, {
+                    sections: window.sections,
+                    vehicleRecords: window.vehicleRecords,
+                    paradeRecords: window.paradeRecords,
+                    leaveRecords: window.leaveRecords,
+                    vehicleSignatures: window.vehicleSignatures,
+                    updatedAt: new Date().toISOString()
+                });
+            } catch (e) {
+                console.error("Error saving to Firebase: ", e);
+                alert('දත්ත Save කිරීමේදී දෝෂයක් ඇති විය!');
+            }
+        };
+
+        // Start initialization once loaded
+        window.addEventListener('DOMContentLoaded', () => {
+            initializeAppStore();
+        });
+    </script>
+
+    <style>
+        @media print {
+            body * { visibility: hidden; }
+            #printable-report, #printable-report * { visibility: visible; }
+            #printable-report { position: fixed; left: 0; top: 0; width: 100% !important; border: none !important; box-shadow: none !important; transform: none !important; background: white !important; z-index: 9999; }
+            #printable-parade-report, #printable-parade-report * { visibility: visible; }
+            #printable-parade-report { position: fixed; left: 0; top: 0; width: 100% !important; border: none !important; box-shadow: none !important; transform: none !important; background: white !important; z-index: 9999; }
+            #printable-leave-report, #printable-leave-report * { visibility: visible; }
+            #printable-leave-report { position: fixed; left: 0; top: 0; width: 100% !important; border: none !important; box-shadow: none !important; transform: none !important; background: white !important; z-index: 9999; }
+            .no-print { display: none !important; }
+        }
+        table { border-color: #000 !important; }
+        th, td { border-color: #000 !important; color: #000 !important; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col font-sans antialiased text-gray-800 select-none">
+
+    <!-- Header Section -->
+    <header class="bg-indigo-700 text-white p-4 shadow-md flex justify-between items-center sticky top-0 z-20 no-print">
+        <div>
+            <h1 id="header-title" class="text-base font-bold tracking-wide truncate max-w-[200px] sm:max-w-none">මුල් පිටුව (Home)</h1>
+        </div>
+    </header>
+
+    <!-- Main Dynamic Content Container -->
+    <main class="flex-1 p-4 pb-24 max-w-7xl mx-auto w-full">
+        
+        <!-- Tab 1: HOME SECTION -->
+        <section id="tab-home" class="tab-content w-full text-center text-gray-400 text-sm h-full flex items-center justify-center">
+            <p>මුල් පිටුවට අදාළ අන්තර්ගතය මෙහි පෙන්වනු ඇත.</p>
+        </section>
+
+        <!-- Tab 2: SECTION TAB -->
+        <section id="tab-section" class="tab-content hidden w-full space-y-3">
+            <div class="flex justify-between items-center">
+                <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">කොටස් (Sections) ලැයිස්තුව</h3>
+                <button onclick="openAddSectionModal()" class="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm flex items-center space-x-1">
+                    <i class="fa-solid fa-plus text-[10px]"></i><span>Add Section</span>
+                </button>
+            </div>
+            <div id="sections-container" class="space-y-3">
+                <p id="no-sections-msg" class="text-center text-gray-400 text-sm py-8">තවමත් කිසිදු Section එකක් එකතු කර නොමැත.</p>
+            </div>
+        </section>
+
+        <!-- Dynamic Vehicle Report View Container -->
+        <section id="vehicle-report-view" class="tab-content hidden space-y-6">
+            <div class="flex flex-wrap justify-between items-center bg-white p-3 rounded-xl border border-gray-200 shadow-sm no-print gap-2">
+                <button onclick="backToSections()" class="text-xs text-indigo-600 font-bold flex items-center space-x-1">
+                    <i class="fa-solid fa-arrow-left"></i><span>නැවත Sections වෙත</span>
+                </button>
+                <div class="flex items-center space-x-2 flex-wrap gap-1">
+                    <span id="current-section-title" class="text-xs font-bold text-gray-700"></span>
+                    <button onclick="saveVehicleReportData()" class="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm">Save</button>
+                    <button onclick="openVehicleDownloadModal()" class="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm flex items-center space-x-1">
+                        <i class="fa-solid fa-download text-[10px]"></i><span>Download</span>
+                    </button>
+                    <button type="button" onclick="openAddVehicleModal()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-lg text-xs font-bold">
+                        <i class="fa-solid fa-plus text-[10px]"></i> Add Vehicle
+                    </button>
+                </div>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                <div class="flex items-center space-x-2 no-print">
+                    <label class="text-xs font-bold text-indigo-900 uppercase">වාර්තා දිනය:</label>
+                    <input type="date" id="report-date-top" onchange="syncDate(this.value)" class="text-xs font-bold border rounded-lg px-2 py-1 bg-gray-50">
+                </div>
+                <div class="w-full overflow-x-auto border rounded-lg p-2 bg-gray-50">
+                    <div id="printable-report" class="bg-white p-6 rounded-xl border border-black shadow-md min-w-[1120px] space-y-6">
+                        <div class="flex justify-between items-center border-b border-black pb-3">
+                            <h3 id="vehicle-top-left-title" class="text-[13px] font-bold text-black">අනෙකුත් යුහ වාහන විස්තර</h3>
+                            <h3 id="vehicle-top-right-title" class="text-[13px] font-bold text-black"></h3>
+                        </div>
+
+                        <table class="w-full text-left text-xs border-collapse border border-black">
+                            <thead>
+                                <tr class="bg-gray-100 text-black font-bold border-b border-black text-[11px] text-center">
+                                    <th class="p-2 border border-black">අ/අ</th>
+                                    <th class="p-2 border border-black">වාහන අංකය</th>
+                                    <th class="p-2 border border-black">වර්ගය</th>
+                                    <th class="p-2 border border-black">අයත් ස්ථානය</th>
+                                    <th class="p-2 border border-black">යා කළ ස්ථානය</th>
+                                    <th class="p-2 border border-black">යුහ / යුහ වෙත පවරා ගත් බව</th>
+                                    <th class="p-2 border border-black">රක්ෂණය</th>
+                                    <th class="p-2 border border-black">වේලාව</th>
+                                    <th class="p-2 border border-black">නිරීක්ෂණය වූ වැරදි</th>
+                                    <th class="p-2 border border-black">වෙනත්</th>
+                                    <th class="p-2 border border-black no-print">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="vehicle-table-body" class="divide-y divide-black text-[11px] text-center"></tbody>
+                        </table>
+
+                        <div class="pt-8 flex justify-center text-xs font-semibold text-black">
+                            <div class="w-64 flex flex-col items-center text-center space-y-1">
+                                <div onclick="openFullscreenSignatureModal('vehicle')" class="mb-1 relative h-24 w-60 flex items-end justify-center cursor-pointer group" title="අත්සන් කිරීමට ස්පර්ශ කරන්න">
+                                    <img id="signature-img-display" class="hidden h-20 object-contain absolute bottom-0 pointer-events-none" alt="Signature" />
+                                    <span id="no-sig-text" class="text-gray-400 italic text-[11px] no-print absolute bottom-2 pointer-events-none group-hover:text-indigo-600">අත්සනක් අඳින්න / Tap to Sign</span>
+                                </div>
+                                <div class="no-print pb-2 flex items-center space-x-2">
+                                    <button type="button" onclick="clearSigCanvas()" class="text-[10px] bg-gray-200 hover:bg-gray-300 px-2 py-0.5 rounded font-semibold text-gray-700">අත්සන මකන්න</button>
+                                    <label class="text-[10px] bg-indigo-100 hover:bg-indigo-200 px-2 py-0.5 rounded font-semibold text-indigo-700 cursor-pointer">
+                                        Upload <input type="file" accept="image/*" onchange="handleSigUpload(event)" class="hidden">
+                                    </label>
+                                </div>
+                                <div class="border-b border-black w-56 mb-1"></div>
+                                <div class="no-print w-full">
+                                    <select id="sign-title-select" onchange="updateSignTitleDisplay()" class="text-xs font-bold border border-gray-300 rounded px-2 py-1 bg-white focus:outline-none cursor-pointer text-center w-full shadow-sm">
+                                        <option value="අංශභාර ජ්‍යෙකොනොනි">අංශභාර ජ්‍යෙකොනොනි</option>
+                                        <option value="අංශභාර ජ්‍යෙකොනොනි වෙනුවට">අංශභාර ජ්‍යෙකොනොනි වෙනුවට</option>
+                                        <option value="අංශභාර නිලධාරී">අංශභාර නිලධාරී</option>
+                                        <option value="ස්ථානාධිපති">ස්ථානාධිපති</option>
+                                    </select>
+                                </div>
+                                <div id="sign-title-print-display" class="hidden export-visible font-bold text-black text-center w-full leading-tight">අංශභාර ජ්‍යෙකොනොනි</div>
+                                <div class="text-center w-full leading-tight">ඉංජිසේමු විනයාරක්ෂක අංශය</div>
+                                <div class="text-center w-full leading-tight">මත්තේගොඩ</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dynamic Parade Report View Container -->
+        <section id="parade-report-view" class="tab-content hidden space-y-6">
+            <div class="flex flex-wrap justify-between items-center bg-white p-3 rounded-xl border border-gray-200 shadow-sm no-print gap-2">
+                <button onclick="backToSections()" class="text-xs text-indigo-600 font-bold flex items-center space-x-1">
+                    <i class="fa-solid fa-arrow-left"></i><span>නැවත Sections වෙත</span>
+                </button>
+                <div class="flex items-center space-x-2 flex-wrap gap-1">
+                    <span id="current-parade-section-title" class="text-xs font-bold text-gray-700"></span>
+                    <button onclick="saveParadeReportData()" class="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm">Save</button>
+                    <button onclick="downloadElementAsPDF('printable-parade-report', 'Parade_Report_' + currentYearMonth)" class="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm">PDF / Print</button>
+                    <button type="button" onclick="openAddExtraItemModal()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-lg text-xs font-bold">
+                        <i class="fa-solid fa-plus text-[10px]"></i> විස්තරයක් එකතු කරන්න
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                <div class="flex items-center space-x-2 no-print">
+                    <label class="text-xs font-bold text-indigo-900 uppercase">මාසය තෝරන්න:</label>
+                    <input type="month" id="report-month-top" onchange="syncMonth(this.value)" class="text-xs font-bold border rounded-lg px-2 py-1 bg-gray-50">
+                </div>
+
+                <div class="w-full overflow-x-auto border border-gray-300 rounded-lg p-2 bg-gray-50">
+                    <div id="printable-parade-report" class="bg-white p-4 rounded-xl border border-black shadow-md min-w-[1450px]">
+                        <div class="text-left pb-3 border-b border-black mb-3">
+                            <h2 id="parade-main-title" class="text-[14px] font-bold text-black"></h2>
+                        </div>
+                        <div class="overflow-x-auto border border-black">
+                            <table class="w-full text-left text-xs border-collapse border border-black">
+                                <thead>
+                                    <tr class="bg-gray-100 text-black font-bold border-b border-black text-[10px] text-center" id="edit-table-head"></tr>
+                                </thead>
+                                <tbody id="parade-table-body" class="divide-y divide-black text-[10px] text-center"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dynamic Leave Records View Container -->
+        <section id="leave-report-view" class="tab-content hidden space-y-6">
+            <div class="flex flex-wrap justify-between items-center bg-white p-3 rounded-xl border border-gray-200 shadow-sm no-print gap-2">
+                <button onclick="backToSections()" class="text-xs text-indigo-600 font-bold flex items-center space-x-1">
+                    <i class="fa-solid fa-arrow-left"></i><span>නැවත Sections වෙත</span>
+                </button>
+                <div class="flex items-center space-x-2 flex-wrap gap-1">
+                    <span id="current-leave-section-title" class="text-xs font-bold text-gray-700"></span>
+                    <button onclick="openDownloadModal()" class="bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm flex items-center space-x-1">
+                        <i class="fa-solid fa-share-nodes text-[10px]"></i><span>Share / Download</span>
+                    </button>
+                    <button onclick="openAddLeavePersonModal()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-lg text-xs font-bold">
+                        <i class="fa-solid fa-plus text-[10px]"></i> සාමාජිකයෙක් එකතු කරන්න
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                <div class="flex justify-between items-center flex-wrap gap-2 no-print">
+                    <div class="flex items-center space-x-2">
+                        <label class="text-xs font-bold text-indigo-900 uppercase">මාසය තෝරන්න:</label>
+                        <input type="month" id="leave-month-top" onchange="syncLeaveMonth(this.value)" class="text-xs font-bold border rounded-lg px-2 py-1 bg-gray-50">
+                    </div>
+                </div>
+
+                <div class="w-full overflow-x-auto bg-white shadow-sm">
+                    <div id="printable-leave-report" class="bg-white p-4 rounded-xl border border-black min-w-[1500px] space-y-4">
+                        <div class="flex justify-between items-center border-b border-black pb-3">
+                            <h2 id="leave-report-title" class="text-[14px] font-bold text-black"></h2>
+                        </div>
+                        <div class="overflow-x-auto border border-black">
+                            <table class="w-full text-left text-xs border-collapse border border-black">
+                                <thead>
+                                    <tr class="bg-gray-100 text-black font-bold border-b border-black text-[10px] text-center" id="leave-table-head"></tr>
+                                </thead>
+                                <tbody id="leave-table-body" class="divide-y divide-black text-[10px] text-center"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab 3: SETTINGS TAB -->
+        <section id="tab-setting" class="tab-content hidden w-full space-y-3">
+            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">ඇප් සෙටින්ග්ස් (Settings)</h3>
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden divide-y divide-gray-100">
+                <div class="p-4 flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm"><i class="fa-solid fa-palette"></i></div>
+                        <span class="text-xs font-semibold text-gray-700">අත්සනේ වර්ණය (Signature Color)</span>
+                    </div>
+                    <input type="color" id="sig-color-picker" value="#000000" onchange="changeSigColor(this.value)" class="w-8 h-8 cursor-pointer border rounded bg-transparent" title="Signature Color">
+                </div>
+                <button onclick="openAddSectionModal()" class="w-full p-3.5 flex items-center justify-between text-left hover:bg-gray-50 transition">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm"><i class="fa-solid fa-folder-plus"></i></div>
+                        <span class="text-xs font-semibold text-gray-700">Add Section</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+                </button>
+            </div>
+        </section>
+
+        <!-- Tab 4: CHAT TAB -->
+        <section id="tab-chat" class="tab-content hidden w-full text-center text-gray-400 text-sm h-full flex items-center justify-center">
+            <p>චැට් (Chat) මෙහි පෙන්වනු ඇත.</p>
+        </section>
+    </main>
+
+    <!-- Fullscreen Landscape Signature Modal -->
+    <div id="fullscreen-sig-modal" class="fixed inset-0 bg-black/90 z-50 hidden flex flex-col items-center justify-center p-2 select-none">
+        <div class="bg-white w-full h-full rounded-xl flex flex-col p-4 shadow-2xl relative">
+            <div class="flex flex-wrap justify-between items-center border-b pb-2 mb-2 shrink-0 gap-2">
+                <h3 id="fs-sig-modal-title" class="text-sm font-bold text-indigo-900">පැහැදිලිව අත්සන / කෙටි අත්සන අඳින්න</h3>
+                
+                <div id="parade-wenuwata-wrapper" class="hidden flex items-center space-x-2 bg-amber-50 border border-amber-200 px-3 py-1 rounded-lg">
+                    <input type="checkbox" id="parade-wenuwata-checkbox" class="w-4 h-4 text-indigo-600 rounded cursor-pointer">
+                    <label for="parade-wenuwata-checkbox" class="text-xs font-bold text-amber-900 cursor-pointer">(වෙනුවට) යන්න යොදන්න</label>
+                </div>
+
+                <div class="flex space-x-2">
+                    <button type="button" id="fs-delete-parade-sig-btn" onclick="deleteParadeShortSig()" class="hidden px-3 py-1 bg-red-100 hover:bg-red-200 text-xs font-bold rounded-lg text-red-700">ඉවත් කරන්න</button>
+                    <button type="button" onclick="clearFullscreenSig()" class="px-3 py-1 bg-gray-200 hover:bg-gray-300 text-xs font-bold rounded-lg text-gray-700">මකන්න (Clear)</button>
+                    <button type="button" onclick="saveFullscreenSig()" class="px-4 py-1 bg-indigo-600 hover:bg-indigo-700 text-xs font-bold rounded-lg text-white">Save Signature</button>
+                    <button onclick="closeFullscreenSignatureModal()" class="text-gray-500 hover:text-gray-700 px-2"><i class="fa-solid fa-xmark text-lg"></i></button>
+                </div>
+            </div>
+            <div class="flex-1 border-2 border-dashed border-indigo-200 rounded-xl relative bg-gray-50 overflow-hidden flex items-center justify-center">
+                <canvas id="fullscreen-sig-canvas" class="w-full h-full cursor-crosshair touch-none"></canvas>
+                <div id="fs-sig-placeholder" class="absolute pointer-events-none text-gray-300 text-sm font-semibold">මෙහි අත්සන හෝ කෙටි අත්සන අඳින්න...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-2 py-1.5 shadow-lg max-w-7xl mx-auto z-20 no-print">
+        <div class="flex justify-between items-center">
+            <button onclick="switchTab('home', 'මුල් පිටුව (Home)', this)" class="nav-btn flex-1 flex flex-col items-center justify-center py-1.5 px-1 text-indigo-600 font-semibold">
+                <i class="fa-solid fa-house text-lg mb-0.5"></i><span class="text-[11px]">Home</span>
+            </button>
+            <button onclick="switchTab('section', 'කොටස් (Sections)', this)" class="nav-btn flex-1 flex flex-col items-center justify-center py-1.5 px-1 text-gray-400">
+                <i class="fa-solid fa-layer-group text-lg mb-0.5"></i><span class="text-[11px]">Section</span>
+            </button>
+            <button onclick="switchTab('setting', 'සෙටින්ග්ස් (Settings)', this)" class="nav-btn flex-1 flex flex-col items-center justify-center py-1.5 px-1 text-gray-400">
+                <i class="fa-solid fa-gear text-lg mb-0.5"></i><span class="text-[11px]">Setting</span>
+            </button>
+            <button onclick="switchTab('chat', 'සංවාද (Chat)', this)" class="nav-btn flex-1 flex flex-col items-center justify-center py-1.5 px-1 text-gray-400">
+                <i class="fa-solid fa-comments text-lg mb-0.5"></i><span class="text-[11px]">Chat</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Modal Form: Add Section -->
+    <div id="add-section-modal" class="fixed inset-0 bg-black/50 z-30 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-sm font-bold text-gray-800">නව Section එකක් නිර්මාණය කිරීම</h3>
+                <button onclick="closeAddSectionModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form onsubmit="handleCreateSection(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Section Name (කොටසේ නම) *</label>
+                    <input type="text" id="section-name-input" required placeholder="උදා: ඉංජිසේමු විනයාරක්ෂක අංශය" class="w-full px-3 py-2 border rounded-xl text-xs">
+                </div>
+                <div class="flex space-x-2 pt-2">
+                    <button type="button" onclick="closeAddSectionModal()" class="flex-1 py-2.5 bg-gray-100 text-xs font-semibold rounded-xl">අවලංගු කරන්න</button>
+                    <button type="submit" class="flex-1 py-2.5 bg-indigo-600 text-white text-xs font-semibold rounded-xl">Create Section</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Form: Add/Edit Vehicle -->
+    <div id="add-vehicle-modal" class="fixed inset-0 bg-black/50 z-30 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b pb-3 shrink-0">
+                <h3 id="vehicle-modal-title" class="text-sm font-bold text-gray-800">නව වාහනයක් එකතු කරන්න</h3>
+                <button onclick="closeAddVehicleModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form onsubmit="handleSaveVehicle(event)" class="space-y-3 overflow-y-auto pr-1 flex-1">
+                <input type="hidden" id="vh-edit-id" value="">
+                <div><label class="block text-xs font-semibold text-gray-700 mb-1">වාහන අංකය *</label><input type="text" id="vh-number" required placeholder="උදා: WP-1234" class="w-full px-3 py-2 border rounded-xl text-xs"></div>
+                <div><label class="block text-xs font-semibold text-gray-700 mb-1">වර්ගය *</label><input type="text" id="vh-type" required placeholder="උදා: මෝටර් රථය" class="w-full px-3 py-2 border rounded-xl text-xs"></div>
+                <div><label class="block text-xs font-semibold text-gray-700 mb-1">අයත් ස්ථානය *</label><input type="text" id="vh-owner" required placeholder="උදා: මූලස්ථානය" class="w-full px-3 py-2 border rounded-xl text-xs"></div>
+                <div><label class="block text-xs font-semibold text-gray-700 mb-1">යා කළ ස්ථානය *</label><input type="text" id="vh-sent" required placeholder="උදා: කොළඹ" class="w-full px-3 py-2 border rounded-xl text-xs"></div>
+                
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">යුහ / යුහ වෙත පවරා ගත් බව *</label>
+                    <select id="vh-taken" required class="w-full px-3 py-2 border rounded-xl text-xs bg-white">
+                        <option value="යුහ">යුහ</option>
+                        <option value="යුහ වෙත පවරා ගන්නා ලද">යුහ වෙත පවරා ගන්නා ලද</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">රක්ෂණය *</label>
+                    <select id="vh-insurance" required class="w-full px-3 py-2 border rounded-xl text-xs bg-white">
+                        <option value="ඇත">ඇත</option>
+                        <option value="නැත">නැත</option>
+                    </select>
+                </div>
+
+                <div><label class="block text-xs font-semibold text-gray-700 mb-1">වේලාව *</label><input type="text" id="vh-time" required placeholder="උදා: 08:30 AM" class="w-full px-3 py-2 border rounded-xl text-xs"></div>
+                
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block text-xs font-semibold text-gray-700">නිරීක්ෂණය වූ වැරදි</label>
+                        <button type="button" onclick="addErrorField()" class="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200"><i class="fa-solid fa-plus"></i> වැරැද්දක් එකතු කරන්න</button>
+                    </div>
+                    <div id="errors-container" class="space-y-2">
+                        <div class="flex items-center space-x-2 error-row">
+                            <span class="text-xs font-bold text-gray-500 w-4 text-center">1.</span>
+                            <input type="text" placeholder="වැරැද්ද ඇතුළත් කරන්න" class="flex-1 px-3 py-1.5 border rounded-xl text-xs error-input">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex space-x-2 pt-3 shrink-0 border-t">
+                    <button type="button" onclick="closeAddVehicleModal()" class="flex-1 py-2 bg-gray-100 text-xs font-semibold rounded-xl">අවලංගු කරන්න</button>
+                    <button type="submit" class="flex-1 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-xl">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Vehicle Download Options -->
+    <div id="vehicle-download-modal" class="fixed inset-0 bg-black/50 z-30 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-center">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-sm font-bold text-gray-800">වාර්තාව ඩාවුන්ලෝඩ් කරන්න</h3>
+                <button onclick="closeVehicleDownloadModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="space-y-3 py-2">
+                <button onclick="downloadVehicleReport('jpg')" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl text-xs shadow hover:bg-indigo-700 flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-file-image"></i><span>JPG ලෙස Download කරගන්න</span>
+                </button>
+                <button onclick="downloadVehicleReport('pdf')" class="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl text-xs shadow hover:bg-emerald-700 flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-file-pdf"></i><span>PDF ලෙස Download / Print කරගන්න</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Image Preview -->
+    <div id="image-preview-modal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-4 shadow-2xl space-y-3 text-center max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b pb-2">
+                <h3 class="text-xs font-bold text-gray-800">වාර්තාව සූදානම් (පින්තූරය තද කර Save කරන්න)</h3>
+                <button onclick="closeImagePreviewModal()" class="text-gray-500 hover:text-gray-700"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <p class="text-[11px] text-indigo-700 font-semibold">ස්වයංක්‍රීය Download වීම බ්ලොක් වී ඇත්නම්, පහත පින්තූරය මත තත්පර 2ක් ඔබාගෙන (Long Press) "Download image" තෝරන්න.</p>
+            <div class="overflow-auto flex-1 border rounded-lg p-1 bg-gray-100">
+                <img id="preview-generated-img" src="" alt="Report Image" class="w-full h-auto mx-auto" />
+            </div>
+            <button onclick="closeImagePreviewModal()" class="w-full py-2 bg-gray-800 text-white text-xs font-bold rounded-xl">වසන්න (Close)</button>
+        </div>
+    </div>
+
+    <!-- Modal Form: Add / Edit Extra Item (Parade) -->
+    <div id="add-extra-item-modal" class="fixed inset-0 bg-black/50 z-30 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 id="parade-item-modal-title" class="text-sm font-bold text-gray-800">අලුතින් විස්තරයක් එකතු කරන්න</h3>
+                <button onclick="closeAddExtraItemModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form onsubmit="handleSaveExtraItem(event)" class="space-y-4">
+                <input type="hidden" id="parade-edit-index" value="">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">විස්තරය (Description) *</label>
+                    <input type="text" id="extra-item-input" required placeholder="උදා: විශේෂ රාජකාරි වෙනත්" class="w-full px-3 py-2 border rounded-xl text-xs">
+                </div>
+                <div class="flex space-x-2 pt-2">
+                    <button type="button" onclick="closeAddExtraItemModal()" class="flex-1 py-2.5 bg-gray-100 text-xs font-semibold rounded-xl">අවලංගු කරන්න</button>
+                    <button type="submit" class="flex-1 py-2.5 bg-indigo-600 text-white text-xs font-semibold rounded-xl">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Form: Add Leave Person -->
+    <div id="add-leave-person-modal" class="fixed inset-0 bg-black/50 z-30 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-sm font-bold text-gray-800">නව සාමාජිකයෙක් එකතු කරන්න</h3>
+                <button onclick="closeAddLeavePersonModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form onsubmit="handleSaveLeavePerson(event)" class="space-y-3">
+                <div><label class="block text-xs font-semibold text-gray-700 mb-1">රෙජි අංකය *</label><input type="text" id="lp-reg" required placeholder="උදා: ඉස/680746" class="w-full px-3 py-2 border rounded-xl text-xs"></div>
+                <div><label class="block text-xs font-semibold text-gray-700 mb-1">නිලය *</label><input type="text" id="lp-rank" required placeholder="උදා: ලා/කෝප්" class="w-full px-3 py-2 border rounded-xl text-xs"></div>
+                <div><label class="block text-xs font-semibold text-gray-700 mb-1">නම *</label><input type="text" id="lp-name" required placeholder="උදා: මාරසිංහ" class="w-full px-3 py-2 border rounded-xl text-xs"></div>
+                <div><label class="block text-xs font-semibold text-gray-700 mb-1">ඒකකය *</label><input type="text" id="lp-unit" required placeholder="උදා: 1 ශ්‍රීලපොබෙ" class="w-full px-3 py-2 border rounded-xl text-xs"></div>
+                <div class="flex space-x-2 pt-2">
+                    <button type="button" onclick="closeAddLeavePersonModal()" class="flex-1 py-2 bg-gray-100 text-xs font-semibold rounded-xl">අවලංගු කරන්න</button>
+                    <button type="submit" class="flex-1 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-xl">එකතු කරන්න</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Delete Confirmation -->
+    <div id="delete-person-modal" class="fixed inset-0 bg-black/50 z-30 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-sm font-bold text-red-600">සාමාජිකයා ඉවත් කිරීම තහවුරු කරන්න</h3>
+                <button onclick="closeDeleteModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <p class="text-xs text-gray-600">මෙම සාමාජිකයා ඉවත් කිරීමට කරුණාකර අදාළ <span id="del-reg-target" class="font-bold text-gray-900"></span> රෙජි අංකය පහතින් ඇතුළත් කරන්න:</p>
+            <input type="text" id="confirm-reg-input" placeholder="රෙජි අංකය මෙහි ලියන්න" class="w-full px-3 py-2 border rounded-xl text-xs">
+            <div class="flex space-x-2 pt-2">
+                <button type="button" onclick="closeDeleteModal()" class="flex-1 py-2 bg-gray-100 text-xs font-semibold rounded-xl">අවලංගු කරන්න</button>
+                <button type="button" onclick="confirmDeletePerson()" class="flex-1 py-2 bg-red-600 text-white text-xs font-semibold rounded-xl">ඉවත් කරන්න</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Share / Download Options -->
+    <div id="download-modal" class="fixed inset-0 bg-black/50 z-30 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-center">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-sm font-bold text-gray-800">චාර්ට් එක ඩාවුන්ලෝඩ් කරන්න</h3>
+                <button onclick="closeDownloadModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="space-y-3 py-2">
+                <button onclick="downloadChartAsJPG()" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl text-xs shadow hover:bg-indigo-700 flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-file-image"></i><span>JPG ලෙස Download කරගන්න</span>
+                </button>
+                <button onclick="downloadLeavePDF()" class="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl text-xs shadow hover:bg-emerald-700 flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-file-pdf"></i><span>PDF ලෙස Download / Print</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Logic Script -->
+    <script>
+        window.sections = [];
+        window.vehicleRecords = {};
+        window.paradeRecords = {};
+        window.leaveRecords = {};
+        window.vehicleSignatures = {};
+        
+        let signatureColor = localStorage.getItem('app_sig_color') || '#000000';
+        let activeSectionId = null;
+        let currentDate = new Date().toISOString().split('T')[0];
+        let currentYearMonth = new Date().toISOString().slice(0, 7);
+        let leaveYearMonth = new Date().toISOString().slice(0, 7);
+        let pendingDeletePersonId = null;
+        let pendingDeleteReg = "";
+
+        let activeSigMode = 'vehicle';
+        let activeParadeSigDay = null;
+
+        const sinhalaMonths = {
+            "01": "ජනවාරි", "02": "පෙබරවාරි", "03": "මාර්තු", "04": "අප්‍රේල්",
+            "05": "මැයි", "06": "ජූනි", "07": "ජූලි", "08": "අගෝස්තු",
+            "09": "සැප්තැම්බර්", "10": "ඔක්තෝබර්", "11": "නොවැම්බර්", "12": "දෙසැම්බර්"
+        };
+
+        const specialHolidays2026 = {
+            "2026-01-03": {type: "poya", name: "දුරුතු පුර පසොළොස්වක පෝය දිනය"},
+            "2026-01-14": {type: "holiday", name: "දුරුතු පුර තෛයිපොන්ගල් දිනය"},
+            "2026-02-01": {type: "poya", name: "නැව් පුර පසොළොස්වක පෝය දිනය"},
+            "2026-02-04": {type: "holiday", name: "ජාතික නිදහස් දිනය"},
+            "2026-03-02": {type: "poya", name: "මැදින් පුර පසොළොස්වක පෝය දිනය"},
+            "2026-03-30": {type: "poya", name: "බක් පුර පසොළොස්වක පෝය දිනය"},
+            "2026-04-03": {type: "holiday", name: "මහ සිකුරාදා"},
+            "2026-04-13": {type: "holiday", name: "සිංහල හා දෙමළ අලුත් අවුරුදු දිනය"},
+            "2026-04-14": {type: "holiday", name: "සිංහල හා දෙමළ අලුත් අවුරුදු උත්සව දිනය"},
+            "2026-04-28": {type: "poya", name: "වෙසක් පුර පසොළොස්වක පෝය දිනය"},
+            "2026-05-01": {type: "holiday", name: "මැයි දිනය"},
+            "2026-05-27": {type: "poya", name: "පොසොන් පුර පසොළොස්වක පෝය දිනය"},
+            "2026-06-25": {type: "poya", name: "ඇසළ පුර පසොළොස්වක පෝය දිනය"},
+            "2026-07-24": {type: "poya", name: "නිකිණි පුර පසොළොස්වක පෝය දිනය"},
+            "2026-08-23": {type: "poya", name: "බිනර පුර පසොළොස්වක පෝය දිනය"},
+            "2026-09-21": {type: "poya", name: "වප් පුර පසොළොස්වක පෝය දිනය"},
+            "2026-10-21": {type: "poya", name: "ඉල් පුර පසොළොස්වක පෝය දිනය"},
+            "2026-11-19": {type: "poya", name: "උඳුවප් පුර පසොළොස්වක පෝය දිනය"},
+            "2026-12-19": {type: "poya", name: "දුරුතු පුර පසොළොස්වක පෝය දිනය"},
+            "2026-12-25": {type: "holiday", name: "නත්තල් දිනය"}
+        };
+
+        let defaultParadeItems = [
+            "ඇතුලත් සංඛ්‍යාව", "නිවාඩු / කෙටි නිවාඩු / වෛද්‍ය නිවාඩු", "පිටතවාසි",
+            "පිටත යා කිරීම්", "පාඨමාලා දේශීය / විදේශීය", "රෝහල් ගත කිරීම්",
+            "ඉතිරි භඨ පිරිස් සංඛ්‍යාව", "විශේෂ රාජකාරි", "දෛනික රාජකාරි", "අද දින කඳවුර තුල සිටින සංඛ්‍යාව"
+        ];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('report-date-top').value = currentDate;
+            document.getElementById('report-month-top').value = currentYearMonth;
+            document.getElementById('leave-month-top').value = leaveYearMonth;
+            document.getElementById('sig-color-picker').value = signatureColor;
+            updateSignTitleDisplay();
+        });
+
+        window.refreshCurrentView = function() {
+            renderSections();
+            if (activeSectionId) {
+                if (!document.getElementById('vehicle-report-view').classList.contains('hidden')) {
+                    updateVehicleHeaders();
+                    renderVehicleTable();
+                    renderVehicleSignature();
+                } else if (!document.getElementById('parade-report-view').classList.contains('hidden')) {
+                    renderParadeTable();
+                } else if (!document.getElementById('leave-report-view').classList.contains('hidden')) {
+                    renderLeaveTable();
+                }
+            }
+        };
+
+        function syncDate(val) { currentDate = val; renderVehicleTable(); renderVehicleSignature(); updateVehicleHeaders(); }
+        function syncMonth(val) { currentYearMonth = val; renderParadeTable(); }
+        function syncLeaveMonth(val) { leaveYearMonth = val; renderLeaveTable(); }
+
+        function updateSignTitleDisplay() {
+            const sel = document.getElementById('sign-title-select');
+            const disp = document.getElementById('sign-title-print-display');
+            if(sel && disp) disp.innerText = sel.value;
+        }
+
+        function switchTab(tabName, titleText, element) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+            document.getElementById('tab-' + tabName)?.classList.remove('hidden');
+            document.getElementById('header-title').innerText = titleText;
+            document.querySelectorAll('.nav-btn').forEach(btn => { btn.classList.remove('text-indigo-600', 'font-semibold'); btn.classList.add('text-gray-400'); });
+            if(element) { element.classList.remove('text-gray-400'); element.classList.add('text-indigo-600', 'font-semibold'); }
+        }
+
+        function openAddSectionModal() { document.getElementById('add-section-modal').classList.remove('hidden'); }
+        function closeAddSectionModal() { document.getElementById('add-section-modal').classList.add('hidden'); }
+        
+        function openAddVehicleModal(editId = null) { 
+            document.getElementById('vh-edit-id').value = "";
+            document.getElementById('vh-number').value = "";
+            document.getElementById('vh-type').value = "";
+            document.getElementById('vh-owner').value = "";
+            document.getElementById('vh-sent').value = "";
+            document.getElementById('vh-time').value = "";
+            document.getElementById('errors-container').innerHTML = `
+                <div class="flex items-center space-x-2 error-row">
+                    <span class="text-xs font-bold text-gray-500 w-4 text-center">1.</span>
+                    <input type="text" placeholder="වැරැද්ද ඇතුළත් කරන්න" class="flex-1 px-3 py-1.5 border rounded-xl text-xs error-input">
+                </div>
+            `;
+
+            if (editId) {
+                document.getElementById('vehicle-modal-title').innerText = "වාහන විස්තර සංස්කරණය කරන්න";
+                document.getElementById('vh-edit-id').value = editId;
+                const list = window.vehicleRecords[activeSectionId]?.[currentDate] || [];
+                const item = list.find(v => String(v.id) === String(editId));
+                if (item) {
+                    document.getElementById('vh-number').value = item.number || "";
+                    document.getElementById('vh-type').value = item.type || "";
+                    document.getElementById('vh-owner').value = item.owner || "";
+                    document.getElementById('vh-sent').value = item.sent || "";
+                    document.getElementById('vh-taken').value = item.taken || "යුහ";
+                    document.getElementById('vh-insurance').value = item.insurance || "ඇත";
+                    document.getElementById('vh-time').value = item.time || "";
+                    
+                    if (Array.isArray(item.errors) && item.errors.length > 0) {
+                        let errHtml = '';
+                        item.errors.forEach((err, idx) => {
+                            errHtml += `
+                                <div class="flex items-center space-x-2 error-row">
+                                    <span class="text-xs font-bold text-gray-500 w-4 text-center">${idx + 1}.</span>
+                                    <input type="text" value="${err}" placeholder="වැරැද්ද ඇතුළත් කරන්න" class="flex-1 px-3 py-1.5 border rounded-xl text-xs error-input">
+                                    <button type="button" onclick="this.parentElement.remove(); updateErrorNumbers();" class="text-red-500 text-xs px-1"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            `;
+                        });
+                        document.getElementById('errors-container').innerHTML = errHtml;
+                    }
+                }
+            } else {
+                document.getElementById('vehicle-modal-title').innerText = "නව වාහනයක් එකතු කරන්න";
+            }
+            document.getElementById('add-vehicle-modal').classList.remove('hidden'); 
+        }
+        function closeAddVehicleModal() { document.getElementById('add-vehicle-modal').classList.add('hidden'); }
+
+        function addErrorField() {
+            const container = document.getElementById('errors-container');
+            const count = container.querySelectorAll('.error-row').length + 1;
+            const row = document.createElement('div');
+            row.className = "flex items-center space-x-2 error-row";
+            row.innerHTML = `
+                <span class="text-xs font-bold text-gray-500 w-4 text-center">${count}.</span>
+                <input type="text" placeholder="වැරැද්ද ඇතුළත් කරන්න" class="flex-1 px-3 py-1.5 border rounded-xl text-xs error-input">
+                <button type="button" onclick="this.parentElement.remove(); updateErrorNumbers();" class="text-red-500 text-xs px-1"><i class="fa-solid fa-xmark"></i></button>
+            `;
+            container.appendChild(row);
+        }
+
+        function updateErrorNumbers() {
+            const rows = document.querySelectorAll('#errors-container .error-row');
+            rows.forEach((row, idx) => {
+                row.querySelector('span').innerText = (idx + 1) + '.';
+            });
+        }
+
+        let fsSigCanvas, fsSigCtx, isFsDrawing = false;
+
+        function openFullscreenSignatureModal(mode = 'vehicle', dayStr = null) {
+            activeSigMode = mode;
+            activeParadeSigDay = dayStr;
+
+            const wenuwataWrapper = document.getElementById('parade-wenuwata-wrapper');
+            const wenuwataCheckbox = document.getElementById('parade-wenuwata-checkbox');
+            const deleteParadeBtn = document.getElementById('fs-delete-parade-sig-btn');
+            const modalTitle = document.getElementById('fs-sig-modal-title');
+
+            if (mode === 'parade_day') {
+                modalTitle.innerText = `දිනය ${dayStr} සඳහා කෙටි අත්සන අඳින්න`;
+                wenuwataWrapper.classList.remove('hidden');
+                deleteParadeBtn.classList.remove('hidden');
+                ensureParadeDataStructure();
+                const existing = window.paradeRecords[activeSectionId][currentYearMonth].signatures?.[dayStr];
+                wenuwataCheckbox.checked = existing ? !!existing.isWenuwata : false;
+            } else {
+                modalTitle.innerText = "පැහැදිලිව අත්සන අඳින්න (Landscape Mode)";
+                wenuwataWrapper.classList.add('hidden');
+                deleteParadeBtn.classList.add('hidden');
+            }
+
+            document.getElementById('fullscreen-sig-modal').classList.remove('hidden');
+            try {
+                if (screen.orientation && screen.orientation.lock) {
+                    screen.orientation.lock('landscape').catch(() => {});
+                }
+            } catch (err) {}
+
+            setTimeout(() => {
+                fsSigCanvas = document.getElementById('fullscreen-sig-canvas');
+                if(!fsSigCanvas) return;
+                fsSigCtx = fsSigCanvas.getContext('2d');
+                
+                fsSigCanvas.width = fsSigCanvas.offsetWidth || window.innerWidth - 60;
+                fsSigCanvas.height = fsSigCanvas.offsetHeight || window.innerHeight - 120;
+                
+                fsSigCtx.strokeStyle = signatureColor;
+                fsSigCtx.lineWidth = mode === 'parade_day' ? 5 : 3;
+                fsSigCtx.lineCap = 'round';
+                fsSigCtx.lineJoin = 'round';
+
+                fsSigCanvas.onmousedown = startFsDraw;
+                fsSigCanvas.onmousemove = drawingFs;
+                fsSigCanvas.onmouseup = stopFsDraw;
+                fsSigCanvas.onmouseleave = stopFsDraw;
+
+                fsSigCanvas.ontouchstart = function(e) {
+                    if(e.touches.length > 0) startFsDraw(e.touches[0]);
+                    e.preventDefault();
+                };
+                fsSigCanvas.ontouchmove = function(e) {
+                    if(e.touches.length > 0) drawingFs(e.touches[0]);
+                    e.preventDefault();
+                };
+                fsSigCanvas.ontouchend = function(e) {
+                    stopFsDraw();
+                    e.preventDefault();
+                };
+
+                let existingImg = null;
+                if (mode === 'parade_day') {
+                    existingImg = window.paradeRecords[activeSectionId]?.[currentYearMonth]?.signatures?.[dayStr]?.img;
+                } else {
+                    existingImg = window.vehicleSignatures[activeSectionId]?.[currentDate];
+                }
+
+                if(existingImg) {
+                    let img = new Image();
+                    img.onload = function() {
+                        fsSigCtx.drawImage(img, 0, 0, fsSigCanvas.width, fsSigCanvas.height);
+                        document.getElementById('fs-sig-placeholder').classList.add('hidden');
+                    };
+                    img.src = existingImg;
+                } else {
+                    document.getElementById('fs-sig-placeholder').classList.remove('hidden');
+                }
+            }, 100);
+        }
+
+        function closeFullscreenSignatureModal() {
+            document.getElementById('fullscreen-sig-modal').classList.add('hidden');
+            try {
+                if (screen.orientation && screen.orientation.unlock) {
+                    screen.orientation.unlock().catch(() => {});
+                }
+            } catch (err) {}
+        }
+
+        function startFsDraw(e) {
+            isFsDrawing = true;
+            document.getElementById('fs-sig-placeholder').classList.add('hidden');
+            const rect = fsSigCanvas.getBoundingClientRect();
+            const scaleX = fsSigCanvas.width / rect.width;
+            const scaleY = fsSigCanvas.height / rect.height;
+            const x = (e.clientX - rect.left) * scaleX;
+            const y = (e.clientY - rect.top) * scaleY;
+            
+            fsSigCtx.strokeStyle = signatureColor;
+            fsSigCtx.beginPath();
+            fsSigCtx.moveTo(x, y);
+        }
+
+        function drawingFs(e) {
+            if(!isFsDrawing) return;
+            const rect = fsSigCanvas.getBoundingClientRect();
+            const scaleX = fsSigCanvas.width / rect.width;
+            const scaleY = fsSigCanvas.height / rect.height;
+            const x = (e.clientX - rect.left) * scaleX;
+            const y = (e.clientY - rect.top) * scaleY;
+
+            fsSigCtx.lineTo(x, y);
+            fsSigCtx.stroke();
+        }
+
+        function stopFsDraw() { isFsDrawing = false; }
+
+        function clearFullscreenSig() {
+            if(fsSigCtx && fsSigCanvas) {
+                fsSigCtx.clearRect(0, 0, fsSigCanvas.width, fsSigCanvas.height);
+            }
+            document.getElementById('fs-sig-placeholder').classList.remove('hidden');
+        }
+
+        function saveFullscreenSig() {
+            if(!activeSectionId || !fsSigCanvas) return;
+            const dataURL = fsSigCanvas.toDataURL('image/png');
+
+            if (activeSigMode === 'parade_day' && activeParadeSigDay) {
+                ensureParadeDataStructure();
+                if (!window.paradeRecords[activeSectionId][currentYearMonth].signatures) {
+                    window.paradeRecords[activeSectionId][currentYearMonth].signatures = {};
+                }
+                const isWenuwata = document.getElementById('parade-wenuwata-checkbox').checked;
+                window.paradeRecords[activeSectionId][currentYearMonth].signatures[activeParadeSigDay] = {
+                    img: dataURL,
+                    isWenuwata: isWenuwata
+                };
+                window.saveToFirebase();
+                renderParadeTable();
+            } else {
+                if(!window.vehicleSignatures[activeSectionId]) window.vehicleSignatures[activeSectionId] = {};
+                window.vehicleSignatures[activeSectionId][currentDate] = dataURL;
+                window.saveToFirebase();
+                renderVehicleSignature();
+            }
+            closeFullscreenSignatureModal();
+        }
+
+        function deleteParadeShortSig() {
+            if (!activeSectionId || !activeParadeSigDay) return;
+            if (window.paradeRecords[activeSectionId]?.[currentYearMonth]?.signatures) {
+                delete window.paradeRecords[activeSectionId][currentYearMonth].signatures[activeParadeSigDay];
+                window.saveToFirebase();
+                renderParadeTable();
+            }
+            closeFullscreenSignatureModal();
+        }
+
+        function clearSigCanvas() { 
+            if(activeSectionId && window.vehicleSignatures[activeSectionId]) {
+                delete window.vehicleSignatures[activeSectionId][currentDate];
+                window.saveToFirebase();
+            }
+            renderVehicleSignature();
+        }
+
+        function changeSigColor(color) {
+            signatureColor = color;
+            localStorage.setItem('app_sig_color', color);
+            if(fsSigCtx) {
+                fsSigCtx.strokeStyle = color;
+            }
+        }
+
+        function handleSigUpload(e) {
+            const file = e.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                storeAndDisplaySignature(event.target.result);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function storeAndDisplaySignature(imgData) {
+            if(!activeSectionId) return;
+            if(!window.vehicleSignatures[activeSectionId]) window.vehicleSignatures[activeSectionId] = {};
+            window.vehicleSignatures[activeSectionId][currentDate] = imgData;
+            window.saveToFirebase();
+            renderVehicleSignature();
+        }
+
+        function renderVehicleSignature() {
+            const imgEl = document.getElementById('signature-img-display');
+            const txtEl = document.getElementById('no-sig-text');
+            if(!imgEl || !txtEl || !activeSectionId) return;
+
+            const sig = window.vehicleSignatures[activeSectionId]?.[currentDate];
+            if(sig) {
+                imgEl.src = sig;
+                imgEl.classList.remove('hidden');
+                txtEl.classList.add('hidden');
+            } else {
+                imgEl.src = '';
+                imgEl.classList.add('hidden');
+                txtEl.classList.remove('hidden');
+            }
+        }
+
+        function openAddExtraItemModal(editIndex = null) {
+            document.getElementById('parade-edit-index').value = "";
+            document.getElementById('extra-item-input').value = "";
+            
+            if (editIndex !== null) {
+                document.getElementById('parade-item-modal-title').innerText = "විස්තරය වෙනස් කරන්න";
+                document.getElementById('parade-edit-index').value = editIndex;
+                ensureParadeDataStructure();
+                const items = window.paradeRecords[activeSectionId][currentYearMonth].items;
+                document.getElementById('extra-item-input').value = items[editIndex] || "";
+            } else {
+                document.getElementById('parade-item-modal-title').innerText = "අලුතින් විස්තරයක් එකතු කරන්න";
+            }
+            document.getElementById('add-extra-item-modal').classList.remove('hidden');
+        }
+
+        function closeAddExtraItemModal() { document.getElementById('add-extra-item-modal').classList.add('hidden'); }
+
+        function handleSaveExtraItem(e) {
+            e.preventDefault();
+            const newItemName = document.getElementById('extra-item-input').value.trim();
+            const editIdx = document.getElementById('parade-edit-index').value;
+            if (!newItemName || !activeSectionId) return;
+            
+            ensureParadeDataStructure();
+            let monthData = window.paradeRecords[activeSectionId][currentYearMonth];
+
+            if (editIdx !== "") {
+                monthData.items[parseInt(editIdx)] = newItemName;
+            } else {
+                monthData.items.push(newItemName);
+            }
+
+            window.saveToFirebase();
+            renderParadeTable();
+            closeAddExtraItemModal();
+        }
+
+        function deleteParadeItem(idx) {
+            if (!activeSectionId) return;
+            ensureParadeDataStructure();
+            let monthData = window.paradeRecords[activeSectionId][currentYearMonth];
+            if (monthData.items.length <= 1) {
+                alert('අවම වශයෙන් එක් විස්තරයක්වත් තිබිය යුතුය!');
+                return;
+            }
+            if (confirm('මෙම විස්තරය මකා දැමීමට අවශ්‍ය බව විශ්වාසද?')) {
+                monthData.items.splice(idx, 1);
+                let newData = {};
+                for (let day in monthData.data) {
+                    newData[day] = {};
+                    for (let itemIdx in monthData.data[day]) {
+                        let i = parseInt(itemIdx);
+                        if (i < idx) newData[day][i] = monthData.data[day][i];
+                        else if (i > idx) newData[day][i - 1] = monthData.data[day][i];
+                    }
+                }
+                monthData.data = newData;
+                window.saveToFirebase();
+                renderParadeTable();
+            }
+        }
+
+        function openAddLeavePersonModal() { document.getElementById('add-leave-person-modal').classList.remove('hidden'); }
+        function closeAddLeavePersonModal() { document.getElementById('add-leave-person-modal').classList.add('hidden'); }
+        function openDownloadModal() { document.getElementById('download-modal').classList.remove('hidden'); }
+        function closeDownloadModal() { document.getElementById('download-modal').classList.add('hidden'); }
+        function openVehicleDownloadModal() { document.getElementById('vehicle-download-modal').classList.remove('hidden'); }
+        function closeVehicleDownloadModal() { document.getElementById('vehicle-download-modal').classList.add('hidden'); }
+        function closeImagePreviewModal() { document.getElementById('image-preview-modal').classList.add('hidden'); }
+
+        function handleCreateSection(e) {
+            e.preventDefault();
+            const sectionName = document.getElementById('section-name-input').value.trim();
+            if (!sectionName) return;
+            const defaultFiles = [
+                { id: 'mp_details', name: 'MP අයවලුන්ගේ විස්තර', icon: 'fa-user-shield' },
+                { id: 'officer_details', name: 'නිලධාරි විස්තර', icon: 'fa-user-tie' },
+                { id: 'lecture_details', name: 'දේශණ විස්තර', icon: 'fa-chalkboard-user' },
+                { id: 'vehicle_report', name: 'වාහන විස්තර වාර්තාව', icon: 'fa-truck-line' },
+                { id: 'parade_details', name: 'දෛනික පෙළපාලි විස්තරය', icon: 'fa-person-walking' },
+                { id: 'leave_records', name: 'නිවාඩු දින සටහන් තැබීම', icon: 'fa-calendar-minus' },
+                { id: 'morning_parade', name: 'උදෑසන කාර්‍ය පෙරට්ටුව', icon: 'fa-sun' },
+                { id: 'night_parade', name: 'රාත්‍රී නාම පෙරට්ටුව', icon: 'fa-moon' },
+                { id: 'duty_roster', name: 'රාජකාරි ලේඛණය', icon: 'fa-clipboard-list' }
+            ];
+            const secId = Date.now();
+            window.sections.push({ id: secId, name: sectionName, files: defaultFiles });
+            window.saveToFirebase();
+            renderSections();
+            closeAddSectionModal();
+            switchTab('section', 'කොටස් (Sections)', document.querySelectorAll('.nav-btn')[1]);
+        }
+
+        function deleteSection(secId, secName) {
+            if (confirm(`"${secName}" Section එක මකා දැමීමට අවශ්‍ය බව විශ්වාසද?`)) {
+                window.sections = window.sections.filter(s => s.id !== secId);
+                window.saveToFirebase();
+                renderSections();
+            }
+        }
+
+        function renderSections() {
+            const container = document.getElementById('sections-container');
+            if(!container) return;
+            if (window.sections.length === 0) { 
+                container.innerHTML = `<p class="text-center text-gray-400 text-sm py-8">තවමත් කිසිදු Section එකක් එකතු කර නොමැත.</p>`; 
+                return; 
+            }
+            container.innerHTML = window.sections.map(sec => `
+                <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div class="w-full p-3.5 bg-white hover:bg-gray-50 flex items-center justify-between cursor-pointer">
+                        <div onclick="toggleSectionDetails(${sec.id})" class="flex items-center space-x-3 flex-1">
+                            <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm"><i class="fa-solid fa-folder"></i></div>
+                            <span class="text-xs font-bold text-gray-800">${sec.name}</span>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <button onclick="deleteSection(${sec.id}, '${sec.name}')" class="text-red-400 hover:text-red-600 p-1 text-xs"><i class="fa-solid fa-trash"></i></button>
+                            <span class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-semibold">${sec.files.length} Files</span>
+                            <i class="fa-solid fa-chevron-down text-gray-400 text-xs"></i>
+                        </div>
+                    </div>
+                    <div id="files-list-${sec.id}" class="hidden border-t border-gray-100 bg-gray-50/50 p-2 divide-y divide-gray-100">
+                        ${sec.files.map(file => `
+                            <div onclick="openFileView(${sec.id}, '${file.id}', '${sec.name}')" class="py-2.5 px-3 flex items-center justify-between hover:bg-white rounded-lg cursor-pointer">
+                                <div class="flex items-center space-x-2.5">
+                                    <div class="w-6 h-6 rounded bg-indigo-100/60 text-indigo-700 flex items-center justify-center text-[11px]"><i class="fa-solid ${file.icon}"></i></div>
+                                    <span class="text-xs text-gray-700 font-medium">${file.name}</span>
+                                </div>
+                                <i class="fa-solid fa-chevron-right text-gray-300 text-[10px]"></i>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleSectionDetails(sectionId) {
+            document.getElementById(`files-list-${sectionId}`).classList.toggle('hidden');
+        }
+
+        function openFileView(secId, fileId, secName) {
+            activeSectionId = secId;
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+
+            if (fileId === 'vehicle_report') {
+                document.getElementById('current-section-title').innerText = `${secName} > වාහන විස්තර වාර්තාව`;
+                document.getElementById('vehicle-report-view').classList.remove('hidden');
+                document.getElementById('header-title').innerText = 'වාහන විස්තර වාර්තාව';
+                updateVehicleHeaders();
+                renderVehicleTable();
+                renderVehicleSignature();
+            } else if (fileId === 'parade_details') {
+                document.getElementById('current-parade-section-title').innerText = `${secName} > දෛනික පෙළපාලි විස්තරය`;
+                document.getElementById('parade-report-view').classList.remove('hidden');
+                document.getElementById('header-title').innerText = 'දෛනික පෙළපාලි විස්තරය';
+                renderParadeTable();
+            } else if (fileId === 'leave_records') {
+                document.getElementById('current-leave-section-title').innerText = `${secName} > නිවාඩු දින සටහන් තැබීම`;
+                document.getElementById('leave-report-view').classList.remove('hidden');
+                document.getElementById('header-title').innerText = 'නිවාඩු දින සටහන් තැබීම';
+                renderLeaveTable();
+            }
+        }
+
+        function backToSections() {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+            document.getElementById('tab-section').classList.remove('hidden');
+            document.getElementById('header-title').innerText = 'කොටස් (Sections)';
+        }
+
+        function getDaysInMonth(year, month) { return new Date(year, month, 0).getDate(); }
+        
+        function formatDateToSinhala(dateStr) {
+            if(!dateStr) return "";
+            const parts = dateStr.split('-');
+            if(parts.length !== 3) return dateStr;
+            const y = parts[0];
+            const m = parts[1];
+            const d = parseInt(parts[2], 10);
+            const mName = sinhalaMonths[m] || m;
+            return `${y} ${mName} මස ${d} වන දින`;
+        }
+
+        function updateVehicleHeaders() {
+            if(!activeSectionId) return;
+            const formattedDate = formatDateToSinhala(currentDate);
+            const secObj = window.sections.find(s => s.id === activeSectionId);
+            const secName = secObj ? secObj.name : '';
+            
+            const titleText = secName ? `අනෙකුත් යුහ වාහන විස්තර - ${secName}` : "අනෙකුත් යුහ වාහන විස්තර";
+            document.getElementById('vehicle-top-left-title').innerText = titleText;
+            document.getElementById('vehicle-top-right-title').innerText = formattedDate;
+        }
+
+        function getDateBgClass(cellDateStr) {
+            let dateObj = new Date(cellDateStr);
+            let dayOfWeek = dateObj.getDay();
+            let holiday = specialHolidays2026[cellDateStr];
+            if (holiday) {
+                if (holiday.type === 'poya') return 'bg-yellow-200 text-yellow-950 font-bold';
+                return 'bg-rose-200 text-rose-950 font-bold';
+            }
+            if (dayOfWeek === 0) return 'bg-rose-100 text-rose-950 font-bold';
+            if (dayOfWeek === 6) return 'bg-gray-200 text-gray-900 font-bold';
+            return '';
+        }
+
+        function ensureVehicleDataStructure() {
+            if (!window.vehicleRecords[activeSectionId]) window.vehicleRecords[activeSectionId] = {};
+            if (!window.vehicleRecords[activeSectionId][currentDate]) {
+                window.vehicleRecords[activeSectionId][currentDate] = [];
+            }
+        }
+
+        function handleSaveVehicle(e) {
+            e.preventDefault();
+            if (!activeSectionId) return;
+            ensureVehicleDataStructure();
+
+            const editId = document.getElementById('vh-edit-id').value;
+            const vehicleNumber = document.getElementById('vh-number').value.trim();
+
+            const existingList = window.vehicleRecords[activeSectionId][currentDate];
+            const duplicate = existingList.find(v => (v.number || '').toLowerCase() === vehicleNumber.toLowerCase() && String(v.id) !== String(editId));
+            if (duplicate) {
+                alert('මෙම වාහන අංකය මෙම දිනය සඳහා දැනටමත් ඇතුළත් කර ඇත!');
+                return;
+            }
+
+            const errorInputs = document.querySelectorAll('.error-input');
+            let errorsList = [];
+            errorInputs.forEach(input => {
+                let val = input.value.trim();
+                if (val) errorsList.push(val);
+            });
+
+            if (editId) {
+                let item = existingList.find(v => String(v.id) === String(editId));
+                if (item) {
+                    item.number = vehicleNumber;
+                    item.type = document.getElementById('vh-type').value.trim();
+                    item.owner = document.getElementById('vh-owner').value.trim();
+                    item.sent = document.getElementById('vh-sent').value.trim();
+                    item.taken = document.getElementById('vh-taken').value;
+                    item.insurance = document.getElementById('vh-insurance').value;
+                    item.time = document.getElementById('vh-time').value.trim();
+                    item.errors = errorsList;
+                    item.other = errorsList.length > 0 ? "රපෝර්තු ඇත" : "-";
+                }
+            } else {
+                const newVehicle = {
+                    id: String(Date.now()),
+                    number: vehicleNumber,
+                    type: document.getElementById('vh-type').value.trim(),
+                    owner: document.getElementById('vh-owner').value.trim(),
+                    sent: document.getElementById('vh-sent').value.trim(),
+                    taken: document.getElementById('vh-taken').value,
+                    insurance: document.getElementById('vh-insurance').value,
+                    time: document.getElementById('vh-time').value.trim(),
+                    errors: errorsList,
+                    other: errorsList.length > 0 ? "රපෝර්තු ඇත" : "-"
+                };
+                window.vehicleRecords[activeSectionId][currentDate].push(newVehicle);
+            }
+
+            window.saveToFirebase();
+            renderVehicleTable();
+            closeAddVehicleModal();
+        }
+
+        function deleteVehicleRecord(vehicleId) {
+            if (!activeSectionId || !window.vehicleRecords[activeSectionId]?.[currentDate]) return;
+            if (confirm('මෙම වාහන වාර්තාව ඉවත් කිරීමට අවශ්‍ය බව විශ්වාසද?')) {
+                window.vehicleRecords[activeSectionId][currentDate] = window.vehicleRecords[activeSectionId][currentDate].filter(v => String(v.id) !== String(vehicleId));
+                window.saveToFirebase();
+                renderVehicleTable();
+            }
+        }
+
+        function saveVehicleReportData() {
+            window.saveToFirebase();
+            alert('වාහන වාර්තාව සාර්ථකව Firebase වෙත Save කර ඇත!');
+        }
+
+        function generateAndExportReport(elementId, fileName, type, hideSelectors = ['.no-print']) {
+            const reportElement = document.getElementById(elementId);
+            if (!reportElement) return;
+
+            updateSignTitleDisplay();
+
+            const hiddenEls = [];
+            hideSelectors.forEach(sel => {
+                document.querySelectorAll(sel).forEach(el => {
+                    if (!el.classList.contains('hidden')) {
+                        el.classList.add('hidden');
+                        hiddenEls.push(el);
+                    }
+                });
+            });
+
+            const shownExportEls = [];
+            document.querySelectorAll('.export-visible').forEach(el => {
+                if (el.classList.contains('hidden')) {
+                    el.classList.remove('hidden');
+                    shownExportEls.push(el);
+                }
+            });
+
+            html2canvas(reportElement, { 
+                scale: 2, 
+                useCORS: true, 
+                backgroundColor: '#ffffff',
+                logging: false 
+            }).then(canvas => {
+                hiddenEls.forEach(el => el.classList.remove('hidden'));
+                shownExportEls.forEach(el => el.classList.add('hidden'));
+
+                if (type === 'pdf') {
+                    try {
+                        const { jsPDF } = window.jspdf;
+                        const imgData = canvas.toDataURL('image/jpeg', 0.98);
+                        const orientation = canvas.width > canvas.height ? 'l' : 'p';
+                        const pdf = new jsPDF(orientation, 'mm', 'a4');
+                        const pdfWidth = pdf.internal.pageSize.getWidth();
+                        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+                        
+                        pdf.addImage(imgData, 'JPEG', 0, 10, pdfWidth, pdfHeight);
+                        pdf.save(`${fileName}.pdf`);
+                    } catch (e) {
+                        window.print();
+                    }
+                } else {
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+                    try {
+                        let link = document.createElement('a');
+                        link.download = `${fileName}.jpg`;
+                        link.href = dataUrl;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    } catch (e) {}
+
+                    document.getElementById('preview-generated-img').src = dataUrl;
+                    document.getElementById('image-preview-modal').classList.remove('hidden');
+                }
+            }).catch(err => {
+                hiddenEls.forEach(el => el.classList.remove('hidden'));
+                shownExportEls.forEach(el => el.classList.add('hidden'));
+                alert('වාර්තාව සැකසීමේදී දෝෂයක් ඇති විය.');
+            });
+        }
+
+        function downloadVehicleReport(type) {
+            closeVehicleDownloadModal();
+            generateAndExportReport('printable-report', `Vehicle_Report_${currentDate}`, type, ['.no-print']);
+        }
+
+        function downloadElementAsPDF(elementId, fileName) {
+            generateAndExportReport(elementId, fileName, 'pdf', ['.no-print']);
+        }
+
+        function renderVehicleTable() {
+            const tbody = document.getElementById('vehicle-table-body');
+            if (!tbody || !activeSectionId) return;
+            ensureVehicleDataStructure();
+            const list = window.vehicleRecords[activeSectionId][currentDate] || [];
+
+            if (list.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="11" class="p-6 text-center text-gray-400">මෙම දිනය සඳහා වාහන විස්තර ඇතුළත් කර නොමැත.</td></tr>`;
+                return;
+            }
+
+            let rows = '';
+            list.forEach((v, idx) => {
+                let formattedErrors = '-';
+                if (Array.isArray(v.errors) && v.errors.length > 0) {
+                    formattedErrors = v.errors.map((err, i) => `${i + 1}. ${err}`).join('<br>');
+                } else if (typeof v.errors === 'string' && v.errors.trim() !== '') {
+                    formattedErrors = v.errors;
+                }
+
+                rows += `
+                    <tr class="border-b border-black text-center align-middle text-black font-medium">
+                        <td class="p-2 border border-black">${String(idx + 1).padStart(2, '0')}</td>
+                        <td class="p-2 border border-black font-bold">${v.number || '-'}</td>
+                        <td class="p-2 border border-black">${v.type || '-'}</td>
+                        <td class="p-2 border border-black">${v.owner || '-'}</td>
+                        <td class="p-2 border border-black">${v.sent || '-'}</td>
+                        <td class="p-2 border border-black">${v.taken || '-'}</td>
+                        <td class="p-2 border border-black">${v.insurance || '-'}</td>
+                        <td class="p-2 border border-black">${v.time || '-'}</td>
+                        <td class="p-2 border border-black text-left px-2">${formattedErrors}</td>
+                        <td class="p-2 border border-black font-bold">${v.other || '-'}</td>
+                        <td class="p-2 border border-black no-print">
+                            <div class="flex items-center justify-center space-x-2">
+                                <button onclick="openAddVehicleModal('${v.id}')" class="text-indigo-600 hover:text-indigo-800 text-xs" title="සංස්කරණය"><i class="fa-solid fa-pen"></i></button>
+                                <button onclick="deleteVehicleRecord('${v.id}')" class="text-red-500 hover:text-red-700 text-xs" title="ඉවත් කරන්න"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = rows;
+        }
+
+        function ensureParadeDataStructure() {
+            if (!window.paradeRecords[activeSectionId]) window.paradeRecords[activeSectionId] = {};
+            if (!window.paradeRecords[activeSectionId][currentYearMonth]) {
+                window.paradeRecords[activeSectionId][currentYearMonth] = { 
+                    items: [...defaultParadeItems], 
+                    data: {},
+                    signatures: {}
+                };
+            }
+            if (!window.paradeRecords[activeSectionId][currentYearMonth].signatures) {
+                window.paradeRecords[activeSectionId][currentYearMonth].signatures = {};
+            }
+        }
+
+        function updateParadeCell(day, itemIndex, val) {
+            if (!activeSectionId) return;
+            ensureParadeDataStructure();
+            let monthData = window.paradeRecords[activeSectionId][currentYearMonth];
+            if (!monthData.data[day]) monthData.data[day] = {};
+            const clean = val.trim();
+            if (!clean) delete monthData.data[day][itemIndex];
+            else monthData.data[day][itemIndex] = clean;
+            window.saveToFirebase();
+        }
+
+        function saveParadeReportData() {
+            window.saveToFirebase();
+            alert('දෛනික පෙළපාලි වාර්තාව සාර්ථකව Save කර ඇත!');
+        }
+
+        function renderParadeTable() {
+            const thead = document.getElementById('edit-table-head');
+            const tbody = document.getElementById('parade-table-body');
+            const titleEl = document.getElementById('parade-main-title');
+            if (!thead || !tbody) return;
+
+            ensureParadeDataStructure();
+            const monthObj = window.paradeRecords[activeSectionId][currentYearMonth];
+            const items = monthObj.items;
+            const data = monthObj.data;
+            const sigs = monthObj.signatures || {};
+
+            const [y, m] = currentYearMonth.split('-');
+            const daysCount = getDaysInMonth(parseInt(y), parseInt(m));
+            const secObj = window.sections.find(s => s.id === activeSectionId);
+            const secName = secObj ? secObj.name : 'ඉංජිසේමු විනයාරක්ෂක අංශය';
+            titleEl.innerText = `${secName} ${y} ${sinhalaMonths[m] || m} මස දෛනික පෙළපාලි විස්තරය`;
+
+            let h = `<th class="p-1.5 border border-black font-bold w-9">අ/අ</th>
+                     <th class="p-1.5 border border-black font-bold min-w-[210px]">විස්තරය</th>
+                     <th class="no-print p-1.5 border border-black font-bold w-20">Action</th>`;
+            
+            let dayColors = {};
+            for (let d = 1; d <= daysCount; d++) {
+                let ds = String(d).padStart(2, '0');
+                let cellDate = `${currentYearMonth}-${ds}`;
+                dayColors[ds] = getDateBgClass(cellDate);
+                h += `<th class="p-1 border border-black font-bold w-11 text-[10px] ${dayColors[ds]}">${ds}</th>`;
+            }
+            thead.innerHTML = h;
+
+            let rows = '';
+            items.forEach((itemText, idx) => {
+                let seq = String(idx + 1).padStart(2, '0');
+                let r = `<tr class="border-b border-black text-black align-middle">
+                    <td class="p-1.5 border border-black font-bold">${seq}</td>
+                    <td class="p-1.5 border border-black text-left px-2 font-bold">${itemText}</td>
+                    <td class="no-print p-1 border border-black">
+                        <div class="flex items-center justify-center space-x-1">
+                            <button onclick="openAddExtraItemModal(${idx})" class="text-indigo-600 hover:text-indigo-800 text-xs px-1" title="වෙනස් කරන්න"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="deleteParadeItem(${idx})" class="text-red-500 hover:text-red-700 text-xs px-1" title="මකන්න"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </td>`;
+
+                for (let d = 1; d <= daysCount; d++) {
+                    let ds = String(d).padStart(2, '0');
+                    let cellBg = dayColors[ds];
+                    let val = data[ds]?.[idx] || '';
+                    r += `<td class="p-0.5 border border-black ${cellBg}">
+                        <input type="text" value="${val}" onchange="updateParadeCell('${ds}', ${idx}, this.value)" class="w-full text-center bg-transparent border-0 text-[10px] py-1 font-bold">
+                    </td>`;
+                }
+                rows += r + '</tr>';
+            });
+
+            let sigSeq = String(items.length + 1).padStart(2, '0');
+            let sigRow = `<tr class="border-b border-black text-black align-middle bg-gray-50/40">
+                <td class="p-1.5 border border-black font-bold">${sigSeq}</td>
+                <td class="p-1.5 border border-black text-left px-2 font-bold">අංශභාර ජ්‍යෙකොනොනි අත්සන</td>
+                <td class="no-print p-1 border border-black text-center text-[9px] text-gray-500 font-semibold">කොටුව ඔබන්න</td>`;
+
+            for (let d = 1; d <= daysCount; d++) {
+                let ds = String(d).padStart(2, '0');
+                let cellBg = dayColors[ds];
+                let sigObj = sigs[ds];
+                
+                let cellContent = `<div class="h-10 w-full flex flex-col items-center justify-center cursor-pointer hover:bg-indigo-50/50 transition" title="කෙටි අත්සන යෙදීමට ස්පර්ශ කරන්න">
+                    <span class="text-[8px] text-gray-300 no-print">+</span>
+                </div>`;
+
+                if (sigObj && sigObj.img) {
+                    let wenuwataTag = sigObj.isWenuwata ? `<span class="text-[7px] leading-none font-bold text-black mt-0.5 block">(වෙනුවට)</span>` : ``;
+                    cellContent = `<div class="h-10 w-full flex flex-col items-center justify-center cursor-pointer py-0.5" title="වෙනස් කිරීමට ස්පර්ශ කරන්න">
+                        <img src="${sigObj.img}" class="max-h-6 max-w-full object-contain pointer-events-none" alt="Sig" />
+                        ${wenuwataTag}
+                    </div>`;
+                }
+
+                sigRow += `<td onclick="openFullscreenSignatureModal('parade_day', '${ds}')" class="p-0.5 border border-black ${cellBg}">${cellContent}</td>`;
+            }
+            sigRow += `</tr>`;
+
+            tbody.innerHTML = rows + sigRow;
+        }
+
+        function handleSaveLeavePerson(e) {
+            e.preventDefault();
+            if (!activeSectionId) return;
+            if (!window.leaveRecords[activeSectionId]) window.leaveRecords[activeSectionId] = { persons: [], data: {} };
+            
+            const regVal = document.getElementById('lp-reg').value.trim();
+            const exists = window.leaveRecords[activeSectionId].persons.some(p => p.reg === regVal);
+            if (exists) {
+                alert('මෙම රෙජි අංකය දැනටමත් ඇතුළත් කර ඇත!');
+                return;
+            }
+
+            const newPerson = {
+                id: String(Date.now()),
+                reg: regVal,
+                rank: document.getElementById('lp-rank').value.trim(),
+                name: document.getElementById('lp-name').value.trim(),
+                unit: document.getElementById('lp-unit').value.trim()
+            };
+            window.leaveRecords[activeSectionId].persons.push(newPerson);
+            window.saveToFirebase();
+            renderLeaveTable();
+            closeAddLeavePersonModal();
+        }
+
+        function promptDeletePerson(personId, reg) {
+            pendingDeletePersonId = String(personId);
+            pendingDeleteReg = reg.trim();
+            document.getElementById('del-reg-target').innerText = reg;
+            document.getElementById('confirm-reg-input').value = "";
+            document.getElementById('delete-person-modal').classList.remove('hidden');
+        }
+
+        function closeDeleteModal() { document.getElementById('delete-person-modal').classList.add('hidden'); }
+
+        function confirmDeletePerson() {
+            const inputVal = document.getElementById('confirm-reg-input').value.trim();
+            if (inputVal !== pendingDeleteReg) {
+                alert('ඇතුළත් කළ රෙජි අංකය වැරදිය!');
+                return;
+            }
+            window.leaveRecords[activeSectionId].persons = window.leaveRecords[activeSectionId].persons.filter(p => String(p.id) !== String(pendingDeletePersonId));
+            window.saveToFirebase();
+            renderLeaveTable();
+            closeDeleteModal();
+        }
+
+        function movePerson(index, direction) {
+            let persons = window.leaveRecords[activeSectionId].persons;
+            let targetIdx = index + direction;
+            if (targetIdx < 0 || targetIdx >= persons.length) return;
+            let temp = persons[index];
+            persons[index] = persons[targetIdx];
+            persons[targetIdx] = temp;
+            window.saveToFirebase();
+            renderLeaveTable();
+        }
+
+        function updateLeaveCell(personId, dayStr, val) {
+            if (!activeSectionId) return;
+            if (!window.leaveRecords[activeSectionId].data[leaveYearMonth]) window.leaveRecords[activeSectionId].data[leaveYearMonth] = {};
+            if (!window.leaveRecords[activeSectionId].data[leaveYearMonth][personId]) window.leaveRecords[activeSectionId].data[leaveYearMonth][personId] = {};
+            
+            const clean = val.trim();
+            if (!clean) delete window.leaveRecords[activeSectionId].data[leaveYearMonth][personId][dayStr];
+            else window.leaveRecords[activeSectionId].data[leaveYearMonth][personId][dayStr] = clean;
+            
+            window.saveToFirebase();
+            renderLeaveTable();
+        }
+
+        function downloadChartAsJPG() {
+            closeDownloadModal();
+            generateAndExportReport('printable-leave-report', `Leave_Report_${leaveYearMonth}`, 'jpg', ['.action-col']);
+        }
+
+        function downloadLeavePDF() {
+            closeDownloadModal();
+            generateAndExportReport('printable-leave-report', `Leave_Report_${leaveYearMonth}`, 'pdf', ['.action-col']);
+        }
+
+        function renderLeaveTable() {
+            const thead = document.getElementById('leave-table-head');
+            const tbody = document.getElementById('leave-table-body');
+            const titleEl = document.getElementById('leave-report-title');
+
+            if (!thead || !tbody) return;
+
+            const recordObj = window.leaveRecords[activeSectionId] || { persons: [], data: {} };
+
+            const [y, m] = leaveYearMonth.split('-');
+            const daysCount = getDaysInMonth(parseInt(y), parseInt(m));
+            const monthName = sinhalaMonths[m] || m;
+            const secObj = window.sections.find(s => s.id === activeSectionId);
+            const secName = secObj ? secObj.name : 'ඉංජිසේමු විනයාරක්ෂක අංශය';
+            titleEl.innerText = `${secName} ${y} ${monthName} මස නිවාඩු දින සටහන`;
+
+            let h = `<th class="p-1.5 border border-black font-bold w-9">අ/අ</th>
+                     <th class="p-1.5 border border-black font-bold w-24">රෙජි අංකය</th>
+                     <th class="p-1.5 border border-black font-bold w-20">නිලය</th>
+                     <th class="p-1.5 border border-black font-bold w-28">නම</th>
+                     <th class="p-1.5 border border-black font-bold w-20">ඒකකය</th>`;
+
+            let dayColors = {};
+            for (let d = 1; d <= daysCount; d++) {
+                let ds = String(d).padStart(2, '0');
+                let cellDate = `${leaveYearMonth}-${ds}`;
+                dayColors[ds] = getDateBgClass(cellDate);
+                h += `<th class="p-1 border border-black font-bold w-9 text-[10px] ${dayColors[ds]}">${ds}</th>`;
+            }
+            h += `<th class="no-print action-col p-1 border border-black font-bold w-20">Action / Move</th>`;
+            thead.innerHTML = h;
+
+            const persons = recordObj.persons || [];
+            const monthData = recordObj.data?.[leaveYearMonth] || {};
+
+            if (persons.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="${daysCount + 6}" class="p-6 text-center text-gray-400">තවමත් කිසිදු සාමාජිකයෙක් එකතු කර නොමැත.</td></tr>`;
+                return;
+            }
+
+            let rows = '';
+
+            persons.forEach((p, idx) => {
+                let pData = monthData[p.id] || {};
+
+                let r = `<tr class="border-b border-black text-black align-middle">
+                    <td class="p-1.5 border border-black font-bold">${String(idx + 1).padStart(2, '0')}</td>
+                    <td class="p-1.5 border border-black font-semibold">${p.reg}</td>
+                    <td class="p-1.5 border border-black">${p.rank}</td>
+                    <td class="p-1.5 border border-black font-bold text-left px-2">${p.name}</td>
+                    <td class="p-1.5 border border-black">${p.unit}</td>`;
+
+                for (let d = 1; d <= daysCount; d++) {
+                    let ds = String(d).padStart(2, '0');
+                    let val = pData[ds] || '';
+                    let cellBg = dayColors[ds];
+
+                    r += `<td class="p-0.5 border border-black ${cellBg}">
+                        <input type="text" value="${val}" onchange="updateLeaveCell(${p.id}, '${ds}', this.value)" 
+                        placeholder="" class="w-full text-center bg-transparent border-0 text-[10px] font-bold text-black py-1">
+                    </td>`;
+                }
+
+                let moveButtons = `<div class="no-print action-col flex items-center justify-center space-x-1">
+                    <button onclick="movePerson(${idx}, -1)" class="text-indigo-600 hover:text-indigo-800 px-1 font-bold text-xs" title="ඉහළට"><i class="fa-solid fa-arrow-up"></i></button>
+                    <button onclick="movePerson(${idx}, 1)" class="text-indigo-600 hover:text-indigo-800 px-1 font-bold text-xs" title="පහළට"><i class="fa-solid fa-arrow-down"></i></button>
+                    <button onclick="promptDeletePerson('${p.id}', '${p.reg}')" class="text-red-500 hover:text-red-700 px-1 text-xs" title="ඉවත් කරන්න"><i class="fa-solid fa-trash"></i></button>
+                </div>`;
+
+                r += `<td class="p-1 border border-black">${moveButtons}</td>`;
+                rows += r + '</tr>';
+            });
+            tbody.innerHTML = rows;
+        }
+    </script>
+</body>
+</html>
