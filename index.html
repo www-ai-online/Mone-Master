@@ -221,8 +221,8 @@
                 </div>
 
                 <div class="w-full overflow-x-auto border border-gray-300 rounded-lg p-2 bg-gray-50">
-                    <div id="printable-parade-report" class="bg-white p-4 rounded-xl border border-black shadow-md min-w-[1450px]">
-                        <div class="text-left pb-3 border-b border-black mb-3">
+                    <div id="printable-parade-report" class="bg-white p-4 rounded-xl border border-black shadow-md min-w-[1450px] space-y-3">
+                        <div class="text-left pb-2 border-b border-black">
                             <h2 id="parade-main-title" class="text-[14px] font-bold text-black"></h2>
                         </div>
                         <div class="overflow-x-auto border border-black">
@@ -1381,6 +1381,7 @@
 
         async function shareParadeReportImage() {
             const imgEl = document.getElementById('parade-preview-img');
+            const titleText = document.getElementById('parade-main-title').innerText || `දෛනික පෙළපාලි වාර්තාව`;
             if (!imgEl || !imgEl.src) return;
 
             try {
@@ -1391,8 +1392,8 @@
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
                     await navigator.share({
                         files: [file],
-                        title: 'දෛනික පෙළපාලි වාර්තාව',
-                        text: `${currentYearMonth} මාසයේ දෛනික පෙළපාලි වාර්තාව.`
+                        title: titleText,
+                        text: titleText
                     });
                 } else {
                     let link = document.createElement('a');
