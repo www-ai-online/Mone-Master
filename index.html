@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Letter & Data Management App</title>
+    <!-- PWA Manifest & Theme Color -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4f46e5">
+
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome Icons -->
@@ -1641,7 +1645,6 @@
             clone.style.width = originalReport.offsetWidth + 'px';
             document.body.appendChild(clone);
 
-            // Replace input fields with text spans for accurate canvas snapshot
             clone.querySelectorAll('input[type="text"]').forEach(input => {
                 const val = input.value || '';
                 const span = document.createElement('span');
@@ -1650,7 +1653,6 @@
                 input.parentNode.replaceChild(span, input);
             });
 
-            // Hide action columns in cloned node
             clone.querySelectorAll('.action-col').forEach(el => el.classList.add('hidden'));
 
             html2canvas(clone, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false }).then(canvas => {
